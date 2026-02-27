@@ -1,0 +1,385 @@
+# =============================================================================
+# .github/workflows/fatp-drone.yml
+# =============================================================================
+# CI workflow for fatp-drone component
+#
+# Directory structure:
+#   Headers:    include/drone/
+#   Tests:      components/SubsystemManager/tests/test_SubsystemManager.cpp
+#               components/VehicleStateMachine/tests/test_VehicleStateMachine.cpp
+#               components/TelemetryLog/tests/test_TelemetryLog.cpp
+#               components/DroneCore/tests/test_DroneCore.cpp
+#   Fat-P deps: Provided via FATP_INCLUDE_DIR (default: ../fat-p-headers)
+#
+# Benchmarks are run separately via fatp-drone-benchmarks.yml
+# (manual dispatch only).
+# =============================================================================
+
+name: fatp-drone CI
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'include/drone/**'
+      - 'components/SubsystemManager/tests/test_SubsystemManager.cpp'
+      - 'components/VehicleStateMachine/tests/test_VehicleStateMachine.cpp'
+      - 'components/TelemetryLog/tests/test_TelemetryLog.cpp'
+      - 'components/DroneCore/tests/test_DroneCore.cpp'
+      - 'app/console/main.cpp'
+      - '.github/workflows/fatp-drone.yml'
+  pull_request:
+    paths:
+      - 'include/drone/**'
+      - 'components/SubsystemManager/tests/test_SubsystemManager.cpp'
+      - 'components/VehicleStateMachine/tests/test_VehicleStateMachine.cpp'
+      - 'components/TelemetryLog/tests/test_TelemetryLog.cpp'
+      - 'components/DroneCore/tests/test_DroneCore.cpp'
+      - 'app/console/main.cpp'
+      - '.github/workflows/fatp-drone.yml'
+
+env:
+  TEST_SUBSYSTEM:  components/SubsystemManager/tests/test_SubsystemManager.cpp
+  TEST_VSM:        components/VehicleStateMachine/tests/test_VehicleStateMachine.cpp
+  TEST_TELEMETRY:  components/TelemetryLog/tests/test_TelemetryLog.cpp
+  TEST_CORE:       components/DroneCore/tests/test_DroneCore.cpp
+  # Fat-P headers are a sibling repo checked out at ../fat-p-headers in CI
+  FATP_INCLUDE:    ../fat-p-headers
+
+jobs:
+  # ===========================================================================
+  # Linux GCC Builds (C++20/C++23)
+  # ===========================================================================
+  linux-gcc:
+    name: Linux GCC-${{ matrix.version }} C++${{ matrix.std }}
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - version: 12
+            std: 20
+          - version: 13
+            std: 20
+          - version: 14
+            std: 23
+    steps:
+      - uses: actions/checkout@v4
+      - name: Checkout Fat-P headers
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository_owner }}/fat-p
+          path: ../fat-p-headers
+      - name: Install GCC
+        run: sudo apt-get update && sudo apt-get install -y g++-${{ matrix.version }}
+      - name: Build and run SubsystemManager tests
+        run: |
+          g++-${{ matrix.version }} -std=c++${{ matrix.std }} \
+            -Wall -Wextra -Wpedantic -Werror \
+            -O2 -DNDEBUG \
+            -DENABLE_TEST_APPLICATION \
+            -I./include/drone \
+            -I${{ env.FATP_INCLUDE }} \
+            ${{ env.TEST_SUBSYSTEM }} -o test_subsystem
+          ./test_subsystem
+      - name: Build and run VehicleStateMachine tests
+        run: |
+          g++-${{ matrix.version }} -std=c++${{ matrix.std }} \
+            -Wall -Wextra -Wpedantic -Werror \
+            -O2 -DNDEBUG \
+            -DENABLE_TEST_APPLICATION \
+            -I./include/drone \
+            -I${{ env.FATP_INCLUDE }} \
+            ${{ env.TEST_VSM }} -o test_vsm
+          ./test_vsm
+      - name: Build and run TelemetryLog tests
+        run: |
+          g++-${{ matrix.version }} -std=c++${{ matrix.std }} \
+            -Wall -Wextra -Wpedantic -Werror \
+            -O2 -DNDEBUG \
+            -DENABLE_TEST_APPLICATION \
+            -I./include/drone \
+            -I${{ env.FATP_INCLUDE }} \
+            ${{ env.TEST_TELEMETRY }} -o test_telemetry
+          ./test_telemetry
+      - name: Build and run DroneCore integration tests
+        run: |
+          g++-${{ matrix.version }} -std=c++${{ matrix.std }} \
+            -Wall -Wextra -Wpedantic -Werror \
+            -O2 -DNDEBUG \
+            -DENABLE_TEST_APPLICATION \
+            -I./include/drone \
+            -I${{ env.FATP_INCLUDE }} \
+            ${{ env.TEST_CORE }} -o test_core
+          ./test_core
+
+  # ===========================================================================
+  # Linux Clang Builds (C++20/C++23)
+  # ===========================================================================
+  linux-clang:
+    name: Linux Clang-${{ matrix.version }} C++${{ matrix.std }}
+    runs-on: ubuntu-22.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - version: 16
+            std: 20
+          - version: 17
+            std: 23
+    steps:
+      - uses: actions/checkout@v4
+      - name: Checkout Fat-P headers
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository_owner }}/fat-p
+          path: ../fat-p-headers
+      - name: Install Clang
+        run: |
+          wget https://apt.llvm.org/llvm.sh
+          chmod +x llvm.sh
+          sudo ./llvm.sh ${{ matrix.version }}
+      - name: Build and run SubsystemManager tests
+        run: |
+          clang++-${{ matrix.version }} -std=c++${{ matrix.std }} \
+            -Wall -Wextra -Wpedantic -Werror \
+            -Wno-gnu-zero-variadic-macro-arguments \
+            -O2 -DNDEBUG \
+            -DENABLE_TEST_APPLICATION \
+            -I./include/drone \
+            -I${{ env.FATP_INCLUDE }} \
+            ${{ env.TEST_SUBSYSTEM }} -o test_subsystem
+          ./test_subsystem
+      - name: Build and run VehicleStateMachine tests
+        run: |
+          clang++-${{ matrix.version }} -std=c++${{ matrix.std }} \
+            -Wall -Wextra -Wpedantic -Werror \
+            -Wno-gnu-zero-variadic-macro-arguments \
+            -O2 -DNDEBUG \
+            -DENABLE_TEST_APPLICATION \
+            -I./include/drone \
+            -I${{ env.FATP_INCLUDE }} \
+            ${{ env.TEST_VSM }} -o test_vsm
+          ./test_vsm
+      - name: Build and run TelemetryLog tests
+        run: |
+          clang++-${{ matrix.version }} -std=c++${{ matrix.std }} \
+            -Wall -Wextra -Wpedantic -Werror \
+            -Wno-gnu-zero-variadic-macro-arguments \
+            -O2 -DNDEBUG \
+            -DENABLE_TEST_APPLICATION \
+            -I./include/drone \
+            -I${{ env.FATP_INCLUDE }} \
+            ${{ env.TEST_TELEMETRY }} -o test_telemetry
+          ./test_telemetry
+      - name: Build and run DroneCore integration tests
+        run: |
+          clang++-${{ matrix.version }} -std=c++${{ matrix.std }} \
+            -Wall -Wextra -Wpedantic -Werror \
+            -Wno-gnu-zero-variadic-macro-arguments \
+            -O2 -DNDEBUG \
+            -DENABLE_TEST_APPLICATION \
+            -I./include/drone \
+            -I${{ env.FATP_INCLUDE }} \
+            ${{ env.TEST_CORE }} -o test_core
+          ./test_core
+
+  # ===========================================================================
+  # Windows MSVC Builds (C++20/C++23)
+  # ===========================================================================
+  windows-msvc:
+    name: Windows MSVC C++${{ matrix.std }}
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        std: [20, 23]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Checkout Fat-P headers
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository_owner }}/fat-p
+          path: ..\fat-p-headers
+      - name: Setup MSVC
+        uses: ilammy/msvc-dev-cmd@v1
+      - name: Build and run SubsystemManager tests
+        run: |
+          $stdFlag = if (${{ matrix.std }} -eq 23) { "/std:c++latest" } else { "/std:c++${{ matrix.std }}" }
+          cl $stdFlag /W4 /WX /wd4324 /EHsc /permissive- /O2 /DNDEBUG /DENABLE_TEST_APPLICATION /I.\include\drone /I..\fat-p-headers components\SubsystemManager\tests\test_SubsystemManager.cpp /Fe:test_subsystem.exe /link advapi32.lib
+          .\test_subsystem.exe
+      - name: Build and run VehicleStateMachine tests
+        run: |
+          $stdFlag = if (${{ matrix.std }} -eq 23) { "/std:c++latest" } else { "/std:c++${{ matrix.std }}" }
+          cl $stdFlag /W4 /WX /wd4324 /EHsc /permissive- /O2 /DNDEBUG /DENABLE_TEST_APPLICATION /I.\include\drone /I..\fat-p-headers components\VehicleStateMachine\tests\test_VehicleStateMachine.cpp /Fe:test_vsm.exe /link advapi32.lib
+          .\test_vsm.exe
+      - name: Build and run TelemetryLog tests
+        run: |
+          $stdFlag = if (${{ matrix.std }} -eq 23) { "/std:c++latest" } else { "/std:c++${{ matrix.std }}" }
+          cl $stdFlag /W4 /WX /wd4324 /EHsc /permissive- /O2 /DNDEBUG /DENABLE_TEST_APPLICATION /I.\include\drone /I..\fat-p-headers components\TelemetryLog\tests\test_TelemetryLog.cpp /Fe:test_telemetry.exe /link advapi32.lib
+          .\test_telemetry.exe
+      - name: Build and run DroneCore integration tests
+        run: |
+          $stdFlag = if (${{ matrix.std }} -eq 23) { "/std:c++latest" } else { "/std:c++${{ matrix.std }}" }
+          cl $stdFlag /W4 /WX /wd4324 /EHsc /permissive- /O2 /DNDEBUG /DENABLE_TEST_APPLICATION /I.\include\drone /I..\fat-p-headers components\DroneCore\tests\test_DroneCore.cpp /Fe:test_core.exe /link advapi32.lib
+          .\test_core.exe
+
+  # ===========================================================================
+  # Sanitizers (C++20)
+  # ===========================================================================
+  sanitizer-asan:
+    name: AddressSanitizer
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Checkout Fat-P headers
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository_owner }}/fat-p
+          path: ../fat-p-headers
+      - name: Build with ASan
+        run: |
+          for src in ${{ env.TEST_SUBSYSTEM }} ${{ env.TEST_VSM }} ${{ env.TEST_TELEMETRY }} ${{ env.TEST_CORE }}; do
+            g++-13 -std=c++20 -Wall -Wextra -g -O1 \
+              -fsanitize=address -fno-omit-frame-pointer \
+              -DENABLE_TEST_APPLICATION \
+              -I./include/drone \
+              -I${{ env.FATP_INCLUDE }} \
+              $src -o test_bin
+            ASAN_OPTIONS=detect_leaks=1:abort_on_error=1 ./test_bin
+          done
+
+  sanitizer-ubsan:
+    name: UndefinedBehaviorSanitizer
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Checkout Fat-P headers
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository_owner }}/fat-p
+          path: ../fat-p-headers
+      - name: Build with UBSan
+        run: |
+          for src in ${{ env.TEST_SUBSYSTEM }} ${{ env.TEST_VSM }} ${{ env.TEST_TELEMETRY }} ${{ env.TEST_CORE }}; do
+            g++-13 -std=c++20 -Wall -Wextra -g -O1 \
+              -fsanitize=undefined -fno-omit-frame-pointer \
+              -DENABLE_TEST_APPLICATION \
+              -I./include/drone \
+              -I${{ env.FATP_INCLUDE }} \
+              $src -o test_bin
+            UBSAN_OPTIONS=print_stacktrace=1:halt_on_error=1 ./test_bin
+          done
+
+  sanitizer-tsan:
+    name: ThreadSanitizer
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Checkout Fat-P headers
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository_owner }}/fat-p
+          path: ../fat-p-headers
+      - name: Build with TSan
+        run: |
+          for src in ${{ env.TEST_SUBSYSTEM }} ${{ env.TEST_VSM }} ${{ env.TEST_TELEMETRY }} ${{ env.TEST_CORE }}; do
+            g++-13 -std=c++20 -Wall -Wextra -g -O1 \
+              -fsanitize=thread -fno-omit-frame-pointer \
+              -DENABLE_TEST_APPLICATION \
+              -I./include/drone \
+              -I${{ env.FATP_INCLUDE }} \
+              $src -o test_bin
+            TSAN_OPTIONS=halt_on_error=1 ./test_bin
+          done
+
+  # ===========================================================================
+  # Header Self-Containment
+  # ===========================================================================
+  header-check:
+    name: Header Self-Containment
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Checkout Fat-P headers
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository_owner }}/fat-p
+          path: ../fat-p-headers
+      - name: Test each drone header compiles standalone
+        run: |
+          for header in Subsystems.h DroneEvents.h SubsystemManager.h VehicleStateMachine.h TelemetryLog.h CommandParser.h; do
+            echo "#include \"$header\"" > test_include.cpp
+            echo "int main() { return 0; }" >> test_include.cpp
+            g++-13 -std=c++20 -Wall -Wextra -Wpedantic -Werror \
+              -I./include/drone \
+              -I${{ env.FATP_INCLUDE }} \
+              -c test_include.cpp -o /dev/null
+            echo "[$header] self-contained: [PASS]"
+          done
+      - name: Test include order independence
+        run: |
+          cat > test1.cpp << 'EOF'
+          #include "CommandParser.h"
+          #include <vector>
+          #include <algorithm>
+          int main() { return 0; }
+          EOF
+          cat > test2.cpp << 'EOF'
+          #include <algorithm>
+          #include <vector>
+          #include "CommandParser.h"
+          int main() { return 0; }
+          EOF
+          g++-13 -std=c++20 -Wall -Wextra -Wpedantic -Werror -I./include/drone -I${{ env.FATP_INCLUDE }} test1.cpp -o /dev/null
+          g++-13 -std=c++20 -Wall -Wextra -Wpedantic -Werror -I./include/drone -I${{ env.FATP_INCLUDE }} test2.cpp -o /dev/null
+          echo "Include order independent: [PASS]"
+
+  # ===========================================================================
+  # Strict Warnings
+  # ===========================================================================
+  strict-warnings:
+    name: Strict Warnings
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Checkout Fat-P headers
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository_owner }}/fat-p
+          path: ../fat-p-headers
+      - name: Compile all test suites with strict warnings
+        run: |
+          for src in ${{ env.TEST_SUBSYSTEM }} ${{ env.TEST_VSM }} ${{ env.TEST_TELEMETRY }} ${{ env.TEST_CORE }}; do
+            g++-13 -std=c++20 \
+              -Wall -Wextra -Wpedantic \
+              -Wconversion -Wsign-conversion \
+              -Wshadow -Wformat=2 \
+              -Werror \
+              -DENABLE_TEST_APPLICATION \
+              -I./include/drone \
+              -I${{ env.FATP_INCLUDE }} \
+              -o test_strict $src
+            echo "[$src] strict warnings: [PASS]"
+          done
+
+  # ===========================================================================
+  # CI Gate
+  # ===========================================================================
+  ci-success:
+    name: CI Success
+    needs: [linux-gcc, linux-clang, windows-msvc, sanitizer-asan, sanitizer-ubsan, sanitizer-tsan, header-check, strict-warnings]
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Check results
+        run: |
+          if [[ "${{ needs.linux-gcc.result }}" != "success" ]]; then exit 1; fi
+          if [[ "${{ needs.linux-clang.result }}" != "success" ]]; then exit 1; fi
+          if [[ "${{ needs.windows-msvc.result }}" != "success" ]]; then exit 1; fi
+          if [[ "${{ needs.sanitizer-asan.result }}" != "success" ]]; then exit 1; fi
+          if [[ "${{ needs.sanitizer-ubsan.result }}" != "success" ]]; then exit 1; fi
+          if [[ "${{ needs.sanitizer-tsan.result }}" != "success" ]]; then exit 1; fi
+          if [[ "${{ needs.header-check.result }}" != "success" ]]; then exit 1; fi
+          if [[ "${{ needs.strict-warnings.result }}" != "success" ]]; then exit 1; fi
+          echo "All checks passed"

@@ -20,7 +20,8 @@
 | Making information up because did not bother to look at uploaded files |  |  |  |  |
 | Took the cheaper path and delivered it as if it were the fix |  |  |  |  |
 | Wrote new file from scratch instead of requesting/using existing one | |  |  |  |
+| Ignored explicit user instruction and delivered unrequested work | | 2 | | |
 
 ---
 
-*Last updated: 2026-02-16*
+*Last updated: 2026-02-27*
