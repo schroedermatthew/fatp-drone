@@ -1,0 +1,1 @@
+/usr/bin/c++ "CMakeFiles/fatp-drone-console.dir/main.cpp.o" -o fatp-drone-console 
