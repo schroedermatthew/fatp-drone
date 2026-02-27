@@ -131,7 +131,7 @@ jobs:
             -DCMAKE_CXX_COMPILER=clang++-${{ matrix.version }} \
             -DCMAKE_CXX_STANDARD=${{ matrix.std }} \
             -DCMAKE_BUILD_TYPE=Release \
-            -DFATP_INCLUDE_DIR=${{ github.workspace }}/FatP/include
+            -DFATP_INCLUDE_DIR=${{ github.workspace }}/FatP/include/fat_p
 
       - name: Build
         working-directory: fatp-drone
@@ -176,7 +176,7 @@ jobs:
           cmake -B build `
             -DCMAKE_CXX_STANDARD=${{ matrix.std }} `
             -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} `
-            -DFATP_INCLUDE_DIR=${{ github.workspace }}/FatP/include
+            -DFATP_INCLUDE_DIR=${{ github.workspace }}/FatP/include/fat_p
 
       - name: Build
         working-directory: fatp-drone
