@@ -8,7 +8,7 @@ Five relationship types. Transitive dependency resolution. Cycle detection with 
 
 This component was built by an AI pair-programmer. The FAT-P development guidelines — covering code standards, naming conventions, test structure, benchmark methodology, CI workflow, documentation style, and AI operational behavior — were transferred from the parent library and edited to fit this project. The AI works from those adapted guidelines and produces code and tests to that standard from the start, rather than having a human retrofit compliance afterward. FeatureManager is the result: 2,662 lines of production C++20, 44 passing tests, full JSON serialization, and a drone demo that exercises the complete feature graph under realistic safety constraints.
 
-The drone demo below shows the whole thing working in a realistic control-systems context.
+[![CI](https://github.com/schroedermatthew/fatp-drone/actions/workflows/ci.yml/badge.svg)](https://github.com/schroedermatthew/fatp-drone/actions/workflows/ci.yml)
 
 ---
 
@@ -21,101 +21,6 @@ The drone demo below shows the whole thing working in a realistic control-system
 | `Conflicts` | A and B cannot both be enabled. | Yes (auto) |
 | `MutuallyExclusive` | Group constraint — only one member can be enabled at a time. | Yes (auto) |
 | `Preempts` | Enabling A force-disables B and its entire reverse-dependency closure. Latches inhibit: B cannot re-enable while A is on. | No |
-
----
-
-## API
-
-```cpp
-#include "FeatureManager.h"
-using namespace fat_p::feature;
-
-// Single-threaded (default, zero overhead)
-FeatureManager<fat_p::SingleThreadedPolicy> fm;
-
-// Feature registration
-fm.addFeature("IMU");
-fm.addFeature("Barometer");
-fm.addFeature("Stabilize");
-
-// Relationships
-fm.addRelationship("Stabilize", FeatureRelationship::Requires, "IMU");
-fm.addRelationship("Stabilize", FeatureRelationship::Requires, "Barometer");
-
-// Enabling resolves the full dependency closure automatically
-auto res = fm.enable("Stabilize");
-// IMU and Barometer are now also enabled
-
-assert(fm.isEnabled("IMU"));
-assert(fm.isEnabled("Barometer"));
-
-// Disabling a dependency fails while a dependent is still on
-auto fail = fm.disable("IMU");  // Error: "IMU" required by "Stabilize"
-assert(!fail.has_value());
-
-// Mutually exclusive groups
-fm.addMutuallyExclusiveGroup("FlightModes", {"Manual", "Stabilize", "AltHold", "RTL"});
-// Now enabling any two flight modes at the same time is rejected
-
-// Preempts: authoritative override with cascade
-fm.addRelationship("EmergencyStop", FeatureRelationship::Preempts, "Manual");
-// ...any active flight mode is force-disabled when EmergencyStop enables...
-// ...and cannot re-enable while EmergencyStop remains on
-
-// Observers
-ObserverId id = fm.addObserver([](const std::string& name, bool enabled, bool /*success*/) {
-    // Called for every feature that changes state in the operation,
-    // including implicit dependencies — not just the root request
-});
-
-// RAII observer (auto-removes on scope exit)
-{
-    FeatureManager<>::ScopedObserver guard(fm, [](auto name, auto on, auto) {
-        // ...
-    });
-} // observer removed here
-
-// Batch operations — all-or-nothing
-auto batchRes = fm.batchEnable({"Stabilize", "Barometer"});
-
-// Scoped state changes — automatic rollback on scope exit
-{
-    auto change = fm.scopedEnable("DebugOverlay");
-} // DebugOverlay disabled again here
-
-// Serialization
-std::string json = fm.toJson();
-auto restored = FeatureManager<>::fromJson(json);
-
-// DOT export (visualize in Graphviz)
-std::string dot = fm.toDot();
-// Preempts edges render bold red; Requires solid; Implies dashed; Conflicts dotted
-
-// Validate consistency
-auto valid = fm.validate();
-
-// Thread-safe variants
-FeatureManager<fat_p::MutexSynchronizationPolicy> threadSafe;
-FeatureManager<fat_p::SharedMutexSynchronizationPolicy> readerFriendly;
-```
-
-### Validation callbacks
-
-```cpp
-// Per-feature check fired at enable time
-fm.addFeature("Vulkan", []() -> fat_p::Expected<void, std::string> {
-    if (!gpu_supports_vulkan()) return fat_p::unexpected("Vulkan not supported on this GPU");
-    return {};
-});
-
-// Factory-keyed (serializable across JSON round-trips)
-auto& factory = getFeatureCheckFactory();
-factory.registerType("hw.gpu.vulkan", []() -> FeatureCheck {
-    return []() { return gpu_supports_vulkan() ? fat_p::Expected<void,std::string>{} 
-                                               : fat_p::unexpected("No Vulkan"); };
-});
-fm.addFeature("Vulkan", "hw.gpu.vulkan");  // key is preserved in toJson()
-```
 
 ---
 
@@ -235,8 +140,6 @@ Vehicle lifecycle: `Preflight → Armed → Flying → Landing → Armed` (or `�
 ---
 
 ## Tests
-
-[![CI](https://github.com/schroedermatthew/fatp-drone/actions/workflows/ci.yml/badge.svg)](https://github.com/schroedermatthew/fatp-drone/actions/workflows/ci.yml)
 
 44 unit tests across logic, observer, serialization, and Preempts coverage. The drone demo adds 78 more across SubsystemManager, VehicleStateMachine, TelemetryLog, and DroneCore integration suites.
 
