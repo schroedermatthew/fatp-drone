@@ -59,7 +59,6 @@ struct FullStack
         (void)mgr.enableSubsystem(kESC);
         (void)mgr.enableSubsystem(kMotorMix);
         (void)mgr.enableSubsystem(kRCReceiver);
-        (void)mgr.enableSubsystem(kStabilize);
         (void)mgr.enableSubsystem(kManual);
     }
 };

@@ -6,7 +6,7 @@ cmake_minimum_required(VERSION 3.20)
 #   component: SubsystemManager
 #   file_role: build_script
 #   path: components/SubsystemManager/CMakeLists.txt
-#   layer: Build
+#   layer: Testing
 #   summary: Build script for the SubsystemManager component and its tests.
 #   api_stability: in_work
 #

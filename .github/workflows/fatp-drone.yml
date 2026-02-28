@@ -1,5 +1,5 @@
 # =============================================================================
-# .github/workflows/ci.yml
+# .github/workflows/fatp-drone.yml
 # =============================================================================
 # CI workflow for fatp-drone (drone flight controller built on Fat-P)
 #
@@ -27,14 +27,14 @@ on:
       - 'components/**'
       - 'app/**'
       - 'CMakeLists.txt'
-      - '.github/workflows/ci.yml'
+      - '.github/workflows/fatp-drone.yml'
   pull_request:
     paths:
       - 'include/drone/**'
       - 'components/**'
       - 'app/**'
       - 'CMakeLists.txt'
-      - '.github/workflows/ci.yml'
+      - '.github/workflows/fatp-drone.yml'
 
 jobs:
   # ===========================================================================
@@ -301,11 +301,91 @@ jobs:
         run: cmake --build build --parallel
 
   # ===========================================================================
+  # Header Self-Containment Check
+  # ===========================================================================
+  header-check:
+    name: Header Self-Containment
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout fatp-drone
+        uses: actions/checkout@v4
+        with:
+          path: fatp-drone
+
+      - name: Checkout FatP (dependency)
+        uses: actions/checkout@v4
+        with:
+          repository: schroedermatthew/FatP
+          path: FatP
+
+      - name: Install tools
+        run: sudo apt-get update -qq && sudo apt-get install -y cmake ninja-build
+
+      - name: Configure
+        working-directory: fatp-drone
+        run: |
+          cmake -B build -G Ninja \
+            -DCMAKE_CXX_COMPILER=g++-13 \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DFATP_INCLUDE_DIR=${{ github.workspace }}/FatP/include/fat_p
+
+      - name: Verify each public header compiles standalone
+        working-directory: fatp-drone
+        run: |
+          set -e
+          INCLUDES="-I include/drone -I ${{ github.workspace }}/FatP/include/fat_p"
+          for header in include/drone/*.h; do
+            echo "Checking $header ..."
+            g++-13 -std=c++20 -fsyntax-only $INCLUDES "$header"
+          done
+
+  # ===========================================================================
+  # ThreadSanitizer
+  # ===========================================================================
+  sanitizer-tsan:
+    name: ThreadSanitizer
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout fatp-drone
+        uses: actions/checkout@v4
+        with:
+          path: fatp-drone
+
+      - name: Checkout FatP (dependency)
+        uses: actions/checkout@v4
+        with:
+          repository: schroedermatthew/FatP
+          path: FatP
+
+      - name: Install tools
+        run: sudo apt-get update -qq && sudo apt-get install -y cmake ninja-build
+
+      - name: Configure
+        working-directory: fatp-drone
+        run: |
+          cmake -B build -G Ninja \
+            -DCMAKE_CXX_COMPILER=g++-13 \
+            -DCMAKE_BUILD_TYPE=Debug \
+            -DCMAKE_CXX_FLAGS="-fsanitize=thread -fno-omit-frame-pointer" \
+            -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=thread" \
+            -DFATP_INCLUDE_DIR=${{ github.workspace }}/FatP/include/fat_p
+
+      - name: Build
+        working-directory: fatp-drone
+        run: cmake --build build --parallel
+
+      - name: Test
+        working-directory: fatp-drone
+        env:
+          TSAN_OPTIONS: halt_on_error=1:second_deadlock_stack=1
+        run: ctest --test-dir build --output-on-failure --parallel 4
+
+  # ===========================================================================
   # CI Gate
   # ===========================================================================
   ci-success:
     name: CI Success
-    needs: [linux-gcc, linux-clang, windows-msvc, sanitizer-asan, sanitizer-ubsan, strict-warnings]
+    needs: [linux-gcc, linux-clang, windows-msvc, sanitizer-asan, sanitizer-ubsan, sanitizer-tsan, strict-warnings, header-check]
     runs-on: ubuntu-latest
     if: always()
     steps:
@@ -316,5 +396,7 @@ jobs:
           if [[ "${{ needs.windows-msvc.result }}" != "success" ]]; then exit 1; fi
           if [[ "${{ needs.sanitizer-asan.result }}" != "success" ]]; then exit 1; fi
           if [[ "${{ needs.sanitizer-ubsan.result }}" != "success" ]]; then exit 1; fi
+          if [[ "${{ needs.sanitizer-tsan.result }}" != "success" ]]; then exit 1; fi
           if [[ "${{ needs.strict-warnings.result }}" != "success" ]]; then exit 1; fi
+          if [[ "${{ needs.header-check.result }}" != "success" ]]; then exit 1; fi
           echo "All checks passed"

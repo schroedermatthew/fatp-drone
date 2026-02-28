@@ -6,7 +6,7 @@ cmake_minimum_required(VERSION 3.20)
 #   component: DroneConsole
 #   file_role: build_script
 #   path: app/console/CMakeLists.txt
-#   layer: Build
+#   layer: Testing
 #   summary: Build script for the fatp-drone interactive console application.
 #   api_stability: in_work
 #

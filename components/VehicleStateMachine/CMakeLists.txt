@@ -6,7 +6,7 @@ cmake_minimum_required(VERSION 3.20)
 #   component: VehicleStateMachine
 #   file_role: build_script
 #   path: components/VehicleStateMachine/CMakeLists.txt
-#   layer: Build
+#   layer: Testing
 #   summary: Build script for the VehicleStateMachine component and its tests.
 #   api_stability: in_work
 #

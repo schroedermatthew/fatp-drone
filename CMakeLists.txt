@@ -6,7 +6,7 @@ cmake_minimum_required(VERSION 3.20)
 #   component: DroneProject
 #   file_role: build_script
 #   path: CMakeLists.txt
-#   layer: Build
+#   layer: Testing
 #   summary: Root CMake configuration for the fatp-drone simulator project.
 #   api_stability: in_work
 #

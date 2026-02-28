@@ -50,7 +50,6 @@ FATP_META:
 #include "SubsystemManager.h"
 
 #include <array>
-#include <stdexcept>
 #include <string>
 
 namespace drone
@@ -196,7 +195,6 @@ inline void LandingState::on_exit(VehicleContext& ctx)
 
 inline void EmergencyState::on_entry(VehicleContext& ctx)
 {
-    ctx.events.onSafetyAlert.emit("EmergencyState entered");
     ctx.events.onVehicleStateChanged.emit(ctx.fromState, kName);
 }
 

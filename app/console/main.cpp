@@ -9,7 +9,7 @@ FATP_META:
   file_role: source
   path: app/console/main.cpp
   namespace: ""
-  layer: Domain
+  layer: Testing
   summary: Interactive console REPL for the fatp-drone simulation.
   api_stability: in_work
   related:
@@ -37,6 +37,7 @@ FATP_META:
 #include <iostream>
 #include <string>
 
+// Anonymous namespace: compile-time ANSI escape string constants, no mutable state.
 namespace
 {
 
