@@ -13,24 +13,26 @@
   --glow:0 0 12px rgba(0,212,255,0.3);--glow-g:0 0 12px rgba(0,255,157,0.3);
 }
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-body{background:var(--bg);color:var(--text);font-family:'Exo 2',sans-serif;min-height:100vh;overflow-x:hidden;
+body{background:var(--bg);color:var(--text);font-family:'Exo 2',sans-serif;height:100vh;overflow:hidden;
   background-image:radial-gradient(ellipse 80% 50% at 50% -20%,rgba(0,80,160,0.12) 0%,transparent 70%),
   repeating-linear-gradient(0deg,transparent,transparent 39px,rgba(0,60,120,0.06) 40px),
   repeating-linear-gradient(90deg,transparent,transparent 39px,rgba(0,60,120,0.06) 40px);}
 body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:9999;
   background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,0.03) 2px,rgba(0,0,0,0.03) 4px);}
-header{display:flex;align-items:center;justify-content:space-between;padding:14px 28px;
-  border-bottom:1px solid var(--border);background:rgba(13,21,32,0.95);backdrop-filter:blur(8px);
-  position:sticky;top:0;z-index:100;}
-.logo{font-family:'Orbitron',monospace;font-weight:900;font-size:1.15rem;color:var(--accent);
+
+/* ── Header ── */
+header{display:flex;align-items:center;justify-content:space-between;padding:10px 24px;
+  border-bottom:1px solid var(--border);background:rgba(13,21,32,0.97);backdrop-filter:blur(8px);
+  position:relative;z-index:100;height:48px;}
+.logo{font-family:'Orbitron',monospace;font-weight:900;font-size:1.05rem;color:var(--accent);
   text-shadow:var(--glow);letter-spacing:0.08em;}
-.logo span{color:var(--text-dim);font-weight:400;font-size:0.72rem;margin-left:10px;letter-spacing:0.15em;}
+.logo span{color:var(--text-dim);font-weight:400;font-size:0.68rem;margin-left:10px;letter-spacing:0.15em;}
 .header-right{display:flex;align-items:center;gap:12px;}
-.wasm-badge{font-family:'Share Tech Mono',monospace;font-size:0.65rem;letter-spacing:0.1em;
-  padding:4px 10px;border:1px solid var(--accent2);color:var(--accent2);border-radius:2px;
+.wasm-badge{font-family:'Share Tech Mono',monospace;font-size:0.62rem;letter-spacing:0.1em;
+  padding:3px 9px;border:1px solid var(--accent2);color:var(--accent2);border-radius:2px;
   background:rgba(0,255,157,0.06);}
-.state-pill{padding:5px 16px;border-radius:3px;font-family:'Orbitron',monospace;
-  font-size:0.85rem;font-weight:700;letter-spacing:0.12em;border:1px solid currentColor;transition:all 0.3s;}
+.state-pill{padding:4px 14px;border-radius:3px;font-family:'Orbitron',monospace;
+  font-size:0.8rem;font-weight:700;letter-spacing:0.12em;border:1px solid currentColor;transition:all 0.3s;}
 .state-Preflight{color:var(--accent);border-color:var(--accent);background:rgba(0,212,255,0.08);box-shadow:var(--glow);}
 .state-Armed{color:var(--accent2);border-color:var(--accent2);background:rgba(0,255,157,0.08);box-shadow:var(--glow-g);}
 .state-Flying{color:var(--warn);border-color:var(--warn);background:rgba(255,197,32,0.08);
@@ -40,58 +42,214 @@ header{display:flex;align-items:center;justify-content:space-between;padding:14p
   box-shadow:0 0 12px rgba(255,60,60,0.4);animation:pd 0.8s ease-in-out infinite;}
 @keyframes pw{0%,100%{box-shadow:0 0 8px rgba(255,197,32,0.2)}50%{box-shadow:0 0 20px rgba(255,197,32,0.5)}}
 @keyframes pd{0%,100%{box-shadow:0 0 8px rgba(255,60,60,0.3)}50%{box-shadow:0 0 24px rgba(255,60,60,0.7)}}
-.app{display:grid;grid-template-columns:260px 1fr 300px;grid-template-rows:auto 1fr auto;height:calc(100vh - 57px);}
+@keyframes missingPulse{0%,100%{border-color:transparent;background:transparent}50%{border-color:rgba(255,60,60,0.6);background:rgba(255,60,60,0.08)}}
+@keyframes cascadeGlow{0%,100%{box-shadow:none}50%{box-shadow:0 0 10px rgba(160,100,255,0.5)}}
+@keyframes graphFlash{0%{opacity:0.45}35%{opacity:1}100%{opacity:1}}
+@keyframes blockPulse{0%,100%{opacity:1}50%{opacity:0.42}}
+@keyframes cascadeFlow{to{stroke-dashoffset:-20}}
+
+/* ── App layout: 3 columns, full height minus header ── */
+.app{
+  display:grid;
+  grid-template-columns:250px 1fr 290px;
+  grid-template-rows:1fr;
+  height:calc(100vh - 48px);
+}
+
+/* ── Shared panel styles ── */
 .panel{border:1px solid var(--border2);background:var(--panel);overflow:hidden;}
-.panel-header{padding:10px 16px;font-family:'Orbitron',monospace;font-size:0.65rem;
+.panel-header{padding:8px 14px;font-family:'Orbitron',monospace;font-size:0.62rem;
   letter-spacing:0.2em;color:var(--dim);border-bottom:1px solid var(--border2);
-  text-transform:uppercase;display:flex;align-items:center;gap:8px;}
-.panel-header::before{content:'';width:6px;height:6px;border:1px solid var(--accent);
+  text-transform:uppercase;display:flex;align-items:center;gap:8px;flex-shrink:0;}
+.panel-header::before{content:'';width:5px;height:5px;border:1px solid var(--accent);
   transform:rotate(45deg);flex-shrink:0;}
-.left-panel{grid-column:1;grid-row:1/-1;border-right:1px solid var(--border);
-  display:flex;flex-direction:column;overflow-y:auto;}
-.subsystem-group{padding:8px 12px;border-bottom:1px solid var(--border2);}
-.group-label{font-family:'Share Tech Mono',monospace;font-size:0.6rem;letter-spacing:0.2em;
-  color:var(--text-dim);text-transform:uppercase;margin-bottom:8px;}
+
+/* ── Left panel ── */
+.left-panel{
+  grid-column:1;grid-row:1;
+  border-right:1px solid var(--border);
+  display:flex;flex-direction:column;overflow-y:auto;
+}
+.left-header{padding:8px 14px;font-family:'Orbitron',monospace;font-size:0.62rem;
+  letter-spacing:0.2em;color:var(--dim);border-bottom:1px solid var(--border);
+  text-transform:uppercase;display:flex;align-items:center;gap:8px;flex-shrink:0;}
+.left-header::before{content:'';width:5px;height:5px;border:1px solid var(--accent);transform:rotate(45deg);}
+
+/* quick-arm button */
+.quick-arm-btn{margin:8px 10px;padding:8px;border-radius:2px;border:1px solid rgba(0,255,157,0.35);
+  background:rgba(0,255,157,0.05);color:var(--accent2);font-family:'Orbitron',monospace;
+  font-size:0.6rem;letter-spacing:0.1em;cursor:pointer;transition:all 0.2s;width:calc(100% - 20px);
+  text-align:center;}
+.quick-arm-btn:hover{background:rgba(0,255,157,0.12);border-color:var(--accent2);}
+.quick-arm-btn:disabled{opacity:0.3;cursor:not-allowed;}
+
+/* flight mode chips */
+.mode-chips{display:flex;flex-wrap:wrap;gap:4px;padding:0 10px 8px;}
+.mode-chip{padding:3px 8px;border-radius:2px;border:1px solid var(--border);
+  background:var(--bg);color:var(--text-dim);font-family:'Share Tech Mono',monospace;
+  font-size:0.62rem;cursor:pointer;transition:all 0.18s;}
+.mode-chip:hover{border-color:var(--accent);color:var(--accent);}
+.mode-chip.active{border-color:var(--accent2);color:var(--accent2);background:rgba(0,255,157,0.08);}
+
+.subsystem-group{padding:6px 10px;border-bottom:1px solid var(--border2);}
+.group-label{font-family:'Share Tech Mono',monospace;font-size:0.58rem;letter-spacing:0.2em;
+  color:var(--text-dim);text-transform:uppercase;margin-bottom:6px;}
 .subsystem-item{display:flex;align-items:center;justify-content:space-between;
-  padding:5px 8px;margin-bottom:3px;border-radius:2px;border:1px solid transparent;
-  cursor:pointer;transition:all 0.2s;font-size:0.82rem;}
+  padding:4px 7px;margin-bottom:2px;border-radius:2px;border:1px solid transparent;
+  cursor:pointer;transition:border-color 0.2s,background 0.2s;font-size:0.8rem;}
 .subsystem-item:hover{background:rgba(0,212,255,0.05);border-color:var(--border);}
 .subsystem-item.enabled{border-color:rgba(0,255,157,0.25);background:rgba(0,255,157,0.04);}
-.subsystem-name{font-family:'Share Tech Mono',monospace;font-size:0.78rem;color:var(--text);}
+.subsystem-item.missing{animation:missingPulse 1s ease-in-out 3;}
+.subsystem-item.cascade{animation:cascadeGlow 0.8s ease-in-out 3;}
+.subsystem-name{font-family:'Share Tech Mono',monospace;font-size:0.75rem;color:var(--text);}
 .subsystem-item.enabled .subsystem-name{color:var(--accent2);}
-.toggle-btn{width:36px;height:18px;border-radius:9px;border:1px solid var(--dim);
+.toggle-btn{width:34px;height:16px;border-radius:8px;border:1px solid var(--dim);
   background:var(--bg);position:relative;cursor:pointer;transition:all 0.2s;flex-shrink:0;}
-.toggle-btn::after{content:'';position:absolute;top:2px;left:2px;width:12px;height:12px;
+.toggle-btn::after{content:'';position:absolute;top:2px;left:2px;width:10px;height:10px;
   border-radius:50%;background:var(--dim);transition:all 0.2s;}
-.toggle-btn.on{border-color:var(--accent2);background:rgba(0,255,157,0.1);box-shadow:0 0 6px rgba(0,255,157,0.2);}
+.toggle-btn.on{border-color:var(--accent2);background:rgba(0,255,157,0.1);}
 .toggle-btn.on::after{left:20px;background:var(--accent2);}
-.center-top{grid-column:2;grid-row:1;border-bottom:1px solid var(--border);
-  padding:20px;display:flex;align-items:center;justify-content:center;min-height:180px;position:relative;overflow:hidden;}
-.diagram{display:flex;align-items:center;gap:0;width:100%;justify-content:center;}
-.state-node{width:100px;text-align:center;flex-shrink:0;}
-.state-node-box{padding:10px 8px;border:1px solid var(--border);border-radius:3px;
-  font-family:'Orbitron',monospace;font-size:0.6rem;letter-spacing:0.1em;
-  color:var(--dim);background:var(--bg);transition:all 0.3s;}
+
+/* arm checklist */
+.arm-checklist{padding:6px 10px 4px;border-bottom:1px solid var(--border2);}
+.arm-checklist-title{font-family:'Share Tech Mono',monospace;font-size:0.58rem;
+  letter-spacing:0.15em;color:var(--text-dim);text-transform:uppercase;margin-bottom:4px;}
+.arm-check-item{display:flex;align-items:center;gap:6px;padding:2px 0;
+  font-family:'Share Tech Mono',monospace;font-size:0.7rem;}
+.arm-check-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;}
+.arm-check-dot.ok{background:var(--accent2);}
+.arm-check-dot.missing{background:var(--danger);}
+.arm-check-label{color:var(--text-dim);}
+.arm-check-item.ok .arm-check-label{color:var(--accent2);}
+.arm-check-item.missing .arm-check-label{color:var(--danger);}
+
+/* ── Center column: state machine strip + graph + console ── */
+.center-col{
+  grid-column:2;grid-row:1;
+  display:flex;flex-direction:column;
+  border-right:1px solid var(--border);
+  overflow:hidden;
+}
+
+/* State machine strip */
+.sm-strip{
+  flex-shrink:0;
+  height:86px;
+  border-bottom:1px solid var(--border);
+  background:rgba(8,12,18,0.8);
+  display:flex;align-items:center;justify-content:center;
+  position:relative;padding:0 16px;
+  gap:0;
+}
+.state-node{width:92px;text-align:center;flex-shrink:0;position:relative;}
+.state-node-box{
+  padding:7px 6px;border:1px solid var(--border);border-radius:3px;
+  font-family:'Orbitron',monospace;font-size:0.55rem;letter-spacing:0.1em;
+  color:var(--dim);background:var(--bg);
+  transition:border-color 0.3s,color 0.3s,background 0.3s,box-shadow 0.3s;
+}
+/* Guard label: always present, opacity-only toggle — no layout shift */
+.state-guard{
+  position:absolute;top:100%;left:50%;transform:translateX(-50%);
+  margin-top:3px;
+  font-family:'Share Tech Mono',monospace;font-size:0.58rem;
+  white-space:nowrap;
+  opacity:0;
+  transition:opacity 0.2s;
+  pointer-events:none;
+  height:14px;line-height:14px;
+}
+.state-guard.ok{opacity:1;color:var(--accent2);}
+.state-guard.blocked{opacity:1;color:var(--danger);}
+
 .state-node.active-Preflight .state-node-box{border-color:var(--accent);color:var(--accent);background:rgba(0,212,255,0.08);box-shadow:var(--glow);}
 .state-node.active-Armed .state-node-box{border-color:var(--accent2);color:var(--accent2);background:rgba(0,255,157,0.08);box-shadow:var(--glow-g);}
 .state-node.active-Flying .state-node-box{border-color:var(--warn);color:var(--warn);background:rgba(255,197,32,0.08);}
 .state-node.active-Landing .state-node-box{border-color:#ff9c20;color:#ff9c20;background:rgba(255,156,32,0.08);}
 .state-node.active-Emergency .state-node-box{border-color:var(--danger);color:var(--danger);background:rgba(255,60,60,0.08);box-shadow:0 0 10px rgba(255,60,60,0.3);}
-.state-dot{width:6px;height:6px;border-radius:50%;margin:0 auto 6px;background:transparent;transition:all 0.3s;}
-.state-node.active-Preflight .state-dot{background:var(--accent);box-shadow:0 0 8px var(--accent);}
-.state-node.active-Armed .state-dot{background:var(--accent2);box-shadow:0 0 8px var(--accent2);}
-.state-node.active-Flying .state-dot{background:var(--warn);box-shadow:0 0 8px var(--warn);}
-.state-node.active-Landing .state-dot{background:#ff9c20;box-shadow:0 0 8px #ff9c20;}
-.state-node.active-Emergency .state-dot{background:var(--danger);box-shadow:0 0 8px var(--danger);}
-.arrow{flex:1;height:1px;background:var(--border);position:relative;min-width:16px;}
-.arrow::after{content:'▶';position:absolute;right:-5px;top:-7px;color:var(--dim);font-size:8px;}
-.em-corner{position:absolute;bottom:14px;right:24px;display:flex;flex-direction:column;align-items:center;}
-.console-panel{grid-column:2;grid-row:2;display:flex;flex-direction:column;overflow:hidden;}
-.console-output{flex:1;overflow-y:auto;padding:14px 18px;font-family:'Share Tech Mono',monospace;font-size:0.8rem;line-height:1.7;scroll-behavior:smooth;}
+
+.sm-arrow{flex:1;height:1px;background:var(--border);position:relative;min-width:14px;align-self:center;margin-bottom:14px;}
+.sm-arrow::after{content:'▶';position:absolute;right:-5px;top:-7px;color:var(--dim);font-size:7px;}
+.sm-arrow.reachable{background:var(--accent2);}
+.sm-arrow.reachable::after{color:var(--accent2);}
+.sm-arrow.blocked-arrow{background:var(--danger);}
+.sm-arrow.blocked-arrow::after{color:var(--danger);}
+
+.em-corner{position:absolute;right:16px;bottom:6px;}
+
+/* Graph area */
+.graph-shell{
+  flex:1;
+  display:flex;flex-direction:column;
+  overflow:hidden;
+  min-height:0;
+}
+.graph-toolbar{display:flex;align-items:center;gap:12px;padding:8px 12px;border-bottom:1px solid var(--border2);
+  background:rgba(8,14,21,0.75);font-family:'Share Tech Mono',monospace;flex-shrink:0;}
+.graph-title{font-size:0.75rem;letter-spacing:0.12em;color:var(--accent);text-transform:uppercase;}
+.graph-sub{font-size:0.65rem;letter-spacing:0.08em;color:var(--text-dim);}
+.graph-legend{margin-left:auto;display:flex;flex-wrap:wrap;gap:6px;justify-content:flex-end;}
+.legend-chip{display:inline-flex;align-items:center;gap:5px;padding:2px 6px;border-radius:999px;
+  border:1px solid var(--border);font-size:0.6rem;letter-spacing:0.06em;color:var(--text-dim);text-transform:uppercase;}
+.legend-chip::before{content:'';width:14px;height:0;border-top:2px solid currentColor;opacity:0.9;}
+.legend-chip.requires{color:var(--accent);}
+.legend-chip.implies{color:var(--accent2);}
+.legend-chip.conflict{color:var(--warn);}
+.legend-chip.conflict::before{border-top-style:dashed;}
+.legend-chip.preempts{color:var(--danger);}
+.legend-chip.implies::before,.legend-chip.preempts::before{border-top-style:dashed;}
+.cascade-badge{font-family:'Orbitron',monospace;font-size:0.58rem;color:#b06eff;
+  border:1px solid #b06eff;padding:1px 6px;border-radius:2px;opacity:0;transition:opacity 0.3s;}
+.cascade-badge.visible{opacity:1;}
+
+.feature-graph{width:100%;flex:1;display:block;background:
+  radial-gradient(circle at 50% 0%,rgba(0,120,200,0.08),transparent 42%),
+  linear-gradient(180deg,rgba(0,0,0,0.08),transparent 24%);}
+.graph-note{padding:6px 12px;border-top:1px solid var(--border2);font-family:'Share Tech Mono',monospace;
+  font-size:0.7rem;color:var(--text-dim);height:36px;display:flex;align-items:center;flex-shrink:0;}
+
+/* SVG graph node/edge styles */
+.graph-group-box{fill:rgba(12,20,30,0.56);stroke:rgba(58,85,112,0.5);stroke-width:1;}
+.graph-group-title{font-family:'Orbitron',monospace;font-size:11px;letter-spacing:0.18em;fill:var(--text-dim);text-transform:uppercase;}
+.graph-edge{fill:none;stroke-width:1.55;opacity:0.18;transition:opacity 0.18s ease,stroke-width 0.18s ease,filter 0.18s ease;}
+.graph-edge.requires{stroke:var(--accent);}
+.graph-edge.implies{stroke:var(--accent2);stroke-dasharray:5 4;}
+.graph-edge.conflict{stroke:var(--warn);stroke-dasharray:3 4;}
+.graph-edge.preempts{stroke:var(--danger);stroke-dasharray:6 4;}
+.graph-edge.live{opacity:0.72;stroke-width:2.05;}
+.graph-edge.flash{opacity:1;stroke-width:2.9;filter:drop-shadow(0 0 6px rgba(0,212,255,0.38));animation:graphFlash 1.15s ease-out;}
+.graph-edge.blocked{opacity:1;stroke:var(--danger);stroke-width:2.8;filter:drop-shadow(0 0 7px rgba(255,60,60,0.5));animation:blockPulse 1.05s ease-in-out 2;}
+.graph-edge.cascade-live{opacity:0.9;stroke:#b06eff;stroke-width:2.2;stroke-dasharray:8 5;
+  filter:drop-shadow(0 0 5px rgba(160,100,255,0.5));animation:cascadeFlow 0.6s linear infinite;}
+.graph-node{cursor:pointer;}
+.graph-node rect{fill:rgba(8,12,18,0.96);stroke:rgba(58,85,112,0.65);stroke-width:1.15;
+  transition:fill 0.18s ease,stroke 0.18s ease,filter 0.18s ease;}
+.graph-node text{fill:var(--text);font-family:'Share Tech Mono',monospace;font-size:10.5px;letter-spacing:0.03em;
+  dominant-baseline:middle;text-anchor:middle;pointer-events:none;}
+.graph-node.active rect{fill:rgba(0,255,157,0.12);stroke:rgba(0,255,157,0.9);
+  filter:drop-shadow(0 0 8px rgba(0,255,157,0.24));}
+.graph-node.active text{fill:var(--accent2);}
+.graph-node.flash rect{stroke:rgba(0,212,255,0.95);fill:rgba(0,212,255,0.1);
+  filter:drop-shadow(0 0 9px rgba(0,212,255,0.3));animation:graphFlash 1.15s ease-out;}
+.graph-node.blocked rect{stroke:rgba(255,60,60,0.95);fill:rgba(255,60,60,0.11);
+  filter:drop-shadow(0 0 8px rgba(255,60,60,0.36));animation:blockPulse 1.05s ease-in-out 2;}
+.graph-node.cascade-new rect{stroke:rgba(160,100,255,0.9);fill:rgba(160,100,255,0.1);
+  filter:drop-shadow(0 0 8px rgba(160,100,255,0.35));animation:cascadeGlow 0.8s ease-in-out 3;}
+.graph-node:hover rect{stroke:var(--accent);}
+.graph-node:hover text{fill:var(--accent);}
+
+/* Console */
+.console-panel{
+  flex-shrink:0;
+  height:220px;
+  border-top:1px solid var(--border);
+  display:flex;flex-direction:column;overflow:hidden;
+}
+.console-output{flex:1;overflow-y:auto;padding:8px 14px;font-family:'Share Tech Mono',monospace;font-size:0.76rem;line-height:1.55;scroll-behavior:smooth;min-height:0;}
 .console-output::-webkit-scrollbar{width:4px;}
 .console-output::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px;}
-.log-entry{display:flex;gap:10px;margin-bottom:2px;}
-.log-time{color:var(--text-dim);flex-shrink:0;font-size:0.72rem;margin-top:1px;}
+.log-entry{display:flex;gap:8px;margin-bottom:1px;}
+.log-time{color:var(--text-dim);flex-shrink:0;font-size:0.68rem;margin-top:1px;}
 .log-msg{flex:1;}
 .log-success{color:var(--accent2);}
 .log-error{color:var(--danger);}
@@ -99,43 +257,98 @@ header{display:flex;align-items:center;justify-content:space-between;padding:14p
 .log-info{color:var(--text);}
 .log-system{color:var(--accent);}
 .log-dim{color:var(--text-dim);}
-.console-input-row{display:flex;align-items:center;border-top:1px solid var(--border);}
-.console-prompt-label{padding:12px 14px;font-family:'Share Tech Mono',monospace;font-size:0.8rem;
+/* typed log icons */
+.log-icon{margin-right:4px;opacity:0.85;}
+.log-type-enabled .log-icon{color:var(--accent2);}
+.log-type-disabled .log-icon{color:var(--dim);}
+.log-type-state .log-icon{color:var(--accent);}
+.log-type-safety .log-icon{color:var(--warn);}
+.log-type-error .log-icon{color:var(--danger);}
+
+/* timeline strip */
+.timeline-strip{height:22px;border-top:1px solid var(--border2);flex-shrink:0;
+  display:flex;align-items:center;padding:0 10px;gap:3px;overflow-x:auto;background:rgba(6,10,16,0.8);}
+.timeline-strip::-webkit-scrollbar{height:3px;}
+.timeline-strip::-webkit-scrollbar-thumb{background:var(--border);}
+.tl-pip{width:8px;height:8px;border-radius:50%;flex-shrink:0;cursor:pointer;
+  position:relative;transition:transform 0.15s;}
+.tl-pip:hover{transform:scale(1.6);}
+.tl-pip.tl-enabled{background:var(--accent2);}
+.tl-pip.tl-disabled{background:var(--dim);}
+.tl-pip.tl-state{background:var(--accent);}
+.tl-pip.tl-safety{background:var(--warn);}
+.tl-pip.tl-error{background:var(--danger);}
+.tl-pip title{display:none;}
+.timeline-label{font-family:'Share Tech Mono',monospace;font-size:0.58rem;color:var(--text-dim);
+  flex-shrink:0;margin-right:4px;}
+
+.console-input-row{display:flex;align-items:center;border-top:1px solid var(--border);flex-shrink:0;}
+.console-prompt-label{padding:9px 12px;font-family:'Share Tech Mono',monospace;font-size:0.78rem;
   color:var(--accent);border-right:1px solid var(--border2);white-space:nowrap;flex-shrink:0;}
 .console-input{flex:1;background:transparent;border:none;outline:none;color:var(--text);
-  padding:12px 14px;font-family:'Share Tech Mono',monospace;font-size:0.8rem;caret-color:var(--accent);}
+  padding:9px 12px;font-family:'Share Tech Mono',monospace;font-size:0.78rem;caret-color:var(--accent);}
 .console-input::placeholder{color:var(--text-dim);}
-.send-btn{padding:12px 18px;background:transparent;border:none;border-left:1px solid var(--border2);
-  color:var(--accent);cursor:pointer;font-size:0.75rem;font-family:'Orbitron',monospace;
+.send-btn{padding:9px 14px;background:transparent;border:none;border-left:1px solid var(--border2);
+  color:var(--accent);cursor:pointer;font-size:0.7rem;font-family:'Orbitron',monospace;
   letter-spacing:0.1em;transition:all 0.2s;}
 .send-btn:hover{background:rgba(0,212,255,0.08);}
-.right-panel{grid-column:3;grid-row:1/-1;border-left:1px solid var(--border);
-  display:flex;flex-direction:column;overflow-y:auto;}
-.actions-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:14px;}
-.action-btn{padding:12px 8px;border-radius:2px;border:1px solid var(--border);background:var(--bg);
-  color:var(--text);font-family:'Orbitron',monospace;font-size:0.6rem;letter-spacing:0.1em;
-  cursor:pointer;transition:all 0.2s;text-transform:uppercase;display:flex;flex-direction:column;align-items:center;gap:6px;}
-.action-btn .bi{font-size:1.2rem;}
+
+/* ── Right panel ── */
+.right-panel{
+  grid-column:3;grid-row:1;
+  display:flex;flex-direction:column;
+  overflow-y:auto;
+}
+.right-panel .panel-header{flex-shrink:0;}
+
+/* guard preview overlay: fixed-height, always in DOM, opacity toggle only */
+.guard-preview{
+  height:44px;
+  margin:0 12px 4px;
+  flex-shrink:0;
+  border-radius:3px;
+  border:1px solid var(--border2);
+  background:rgba(4,8,14,0.9);
+  padding:0 10px;
+  display:flex;align-items:center;gap:8px;
+  font-family:'Share Tech Mono',monospace;font-size:0.68rem;
+  opacity:0;
+  transition:opacity 0.15s;
+}
+.guard-preview.visible{opacity:1;}
+.guard-preview.ok{border-color:rgba(0,255,157,0.4);color:var(--accent2);}
+.guard-preview.blocked{border-color:rgba(255,60,60,0.4);color:var(--danger);}
+.guard-icon{font-size:1rem;flex-shrink:0;}
+
+.actions-grid{display:grid;grid-template-columns:1fr 1fr;gap:7px;padding:10px 12px;flex-shrink:0;}
+.action-btn{padding:10px 6px;border-radius:2px;border:1px solid var(--border);background:var(--bg);
+  color:var(--text);font-family:'Orbitron',monospace;font-size:0.58rem;letter-spacing:0.1em;
+  cursor:pointer;transition:all 0.2s;text-transform:uppercase;display:flex;flex-direction:column;align-items:center;gap:5px;}
+.action-btn .bi{font-size:1.1rem;}
 .action-btn:hover{background:rgba(0,212,255,0.06);border-color:var(--accent);color:var(--accent);}
 .action-btn:disabled{opacity:0.3;cursor:not-allowed;}
 .action-btn:disabled:hover{background:var(--bg);border-color:var(--border);color:var(--text);}
 .action-btn.full-width{grid-column:1/-1;}
 .action-btn.emerg{border-color:rgba(255,60,60,0.5);background:rgba(255,60,60,0.05);color:#ff8888;}
 .action-btn.emerg:hover{background:rgba(255,60,60,0.15);border-color:var(--danger);color:var(--danger);}
-.telem-section{padding:0 14px 14px;flex:1;}
+
+.telem-section{padding:0 12px 10px;flex-shrink:0;}
 .telem-entry{display:flex;justify-content:space-between;align-items:center;
-  padding:7px 0;border-bottom:1px solid var(--border2);font-size:0.78rem;}
-.telem-label{color:var(--text-dim);font-family:'Share Tech Mono',monospace;font-size:0.72rem;}
-.telem-value{font-family:'Orbitron',monospace;font-size:0.72rem;color:var(--accent);}
+  padding:5px 0;border-bottom:1px solid var(--border2);font-size:0.76rem;}
+.telem-label{color:var(--text-dim);font-family:'Share Tech Mono',monospace;font-size:0.68rem;}
+.telem-value{font-family:'Orbitron',monospace;font-size:0.68rem;color:var(--accent);}
 .telem-value.ok{color:var(--accent2);}
 .telem-value.err{color:var(--danger);}
 .telem-value.warn{color:var(--warn);}
-.status-bar{grid-column:1/-1;padding:6px 18px;border-top:1px solid var(--border);
-  display:flex;gap:24px;align-items:center;font-family:'Share Tech Mono',monospace;
-  font-size:0.65rem;color:var(--text-dim);background:rgba(8,12,16,0.95);}
+
+.status-bar{flex-shrink:0;padding:5px 14px;border-top:1px solid var(--border);
+  display:flex;gap:20px;align-items:center;font-family:'Share Tech Mono',monospace;
+  font-size:0.62rem;color:var(--text-dim);background:rgba(6,10,14,0.98);}
 .sdot{width:5px;height:5px;border-radius:50%;}
 .sdot.on{background:var(--accent2);box-shadow:0 0 4px var(--accent2);}
 .sdot.off{background:var(--dim);}
+
+/* ── Loading overlay ── */
 .loading-overlay{position:fixed;inset:0;background:var(--bg);z-index:9998;
   display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;}
 .loading-title{font-family:'Orbitron',monospace;font-size:1.4rem;color:var(--accent);letter-spacing:0.15em;}
@@ -163,8 +376,32 @@ header{display:flex;align-items:center;justify-content:space-between;padding:14p
 </header>
 
 <div class="app">
-  <aside class="left-panel panel">
-    <div class="panel-header">Subsystems</div>
+
+  <!-- ═══════════════════════════════════════════════ LEFT PANEL -->
+  <aside class="left-panel">
+    <div class="left-header">Subsystems</div>
+
+    <button class="quick-arm-btn" id="btn-quick-arm" onclick="enableAllArmRequirements()">⚡ Enable All Arm Requirements</button>
+
+    <div style="padding:0 10px 4px;">
+      <div class="arm-checklist">
+        <div class="arm-checklist-title">Arm checklist</div>
+        <div id="arm-checklist-items"></div>
+      </div>
+    </div>
+
+    <div class="subsystem-group">
+      <div class="group-label">⬡ Flight Mode</div>
+      <div class="mode-chips">
+        <span class="mode-chip" id="chip-Manual" onclick="activateMode('Manual')">Manual</span>
+        <span class="mode-chip" id="chip-Stabilize" onclick="activateMode('Stabilize')">Stabilize</span>
+        <span class="mode-chip" id="chip-AltHold" onclick="activateMode('AltHold')">AltHold</span>
+        <span class="mode-chip" id="chip-PosHold" onclick="activateMode('PosHold')">PosHold</span>
+        <span class="mode-chip" id="chip-Autonomous" onclick="activateMode('Autonomous')">Auto</span>
+        <span class="mode-chip" id="chip-RTL" onclick="activateMode('RTL')">RTL</span>
+      </div>
+    </div>
+
     <div class="subsystem-group">
       <div class="group-label">⬡ Sensors</div>
       <div id="sub-IMU" class="subsystem-item" onclick="toggleSub('IMU')"><span class="subsystem-name">IMU</span><div class="toggle-btn" id="tog-IMU"></div></div>
@@ -187,15 +424,6 @@ header{display:flex;align-items:center;justify-content:space-between;padding:14p
       <div id="sub-Datalink" class="subsystem-item" onclick="toggleSub('Datalink')"><span class="subsystem-name">Datalink</span><div class="toggle-btn" id="tog-Datalink"></div></div>
     </div>
     <div class="subsystem-group">
-      <div class="group-label">⬡ Flight Modes</div>
-      <div id="sub-Manual" class="subsystem-item" onclick="toggleSub('Manual')"><span class="subsystem-name">Manual</span><div class="toggle-btn" id="tog-Manual"></div></div>
-      <div id="sub-Stabilize" class="subsystem-item" onclick="toggleSub('Stabilize')"><span class="subsystem-name">Stabilize</span><div class="toggle-btn" id="tog-Stabilize"></div></div>
-      <div id="sub-AltHold" class="subsystem-item" onclick="toggleSub('AltHold')"><span class="subsystem-name">AltHold</span><div class="toggle-btn" id="tog-AltHold"></div></div>
-      <div id="sub-PosHold" class="subsystem-item" onclick="toggleSub('PosHold')"><span class="subsystem-name">PosHold</span><div class="toggle-btn" id="tog-PosHold"></div></div>
-      <div id="sub-Autonomous" class="subsystem-item" onclick="toggleSub('Autonomous')"><span class="subsystem-name">Autonomous</span><div class="toggle-btn" id="tog-Autonomous"></div></div>
-      <div id="sub-RTL" class="subsystem-item" onclick="toggleSub('RTL')"><span class="subsystem-name">RTL</span><div class="toggle-btn" id="tog-RTL"></div></div>
-    </div>
-    <div class="subsystem-group">
       <div class="group-label">⬡ Safety</div>
       <div id="sub-Geofence" class="subsystem-item" onclick="toggleSub('Geofence')"><span class="subsystem-name">Geofence</span><div class="toggle-btn" id="tog-Geofence"></div></div>
       <div id="sub-Failsafe" class="subsystem-item" onclick="toggleSub('Failsafe')"><span class="subsystem-name">Failsafe</span><div class="toggle-btn" id="tog-Failsafe"></div></div>
@@ -204,47 +432,112 @@ header{display:flex;align-items:center;justify-content:space-between;padding:14p
     </div>
   </aside>
 
-  <div class="center-top panel">
-    <div class="diagram">
-      <div class="state-node active-Preflight" id="node-Preflight"><div class="state-dot"></div><div class="state-node-box">PREFLIGHT</div></div>
-      <div class="arrow"></div>
-      <div class="state-node" id="node-Armed"><div class="state-dot"></div><div class="state-node-box">ARMED</div></div>
-      <div class="arrow"></div>
-      <div class="state-node" id="node-Flying"><div class="state-dot"></div><div class="state-node-box">FLYING</div></div>
-      <div class="arrow"></div>
-      <div class="state-node" id="node-Landing"><div class="state-dot"></div><div class="state-node-box">LANDING</div></div>
+  <!-- ═══════════════════════════════════════════ CENTER COLUMN -->
+  <div class="center-col">
+
+    <!-- State machine strip -->
+    <div class="sm-strip">
+      <div class="state-node active-Preflight" id="node-Preflight">
+        <div class="state-node-box">PREFLIGHT</div>
+        <div class="state-guard" id="guard-Preflight"></div>
+      </div>
+      <div class="sm-arrow" id="arrow-arm"></div>
+      <div class="state-node" id="node-Armed">
+        <div class="state-node-box">ARMED</div>
+        <div class="state-guard" id="guard-Armed"></div>
+      </div>
+      <div class="sm-arrow" id="arrow-takeoff"></div>
+      <div class="state-node" id="node-Flying">
+        <div class="state-node-box">FLYING</div>
+        <div class="state-guard" id="guard-Flying"></div>
+      </div>
+      <div class="sm-arrow" id="arrow-land"></div>
+      <div class="state-node" id="node-Landing">
+        <div class="state-node-box">LANDING</div>
+        <div class="state-guard" id="guard-Landing"></div>
+      </div>
+      <div class="em-corner">
+        <div class="state-node" id="node-Emergency" style="width:80px">
+          <div class="state-node-box" style="font-size:0.5rem">EMERGENCY</div>
+          <div class="state-guard" id="guard-Emergency"></div>
+        </div>
+      </div>
     </div>
-    <div class="em-corner">
-      <div class="state-node" id="node-Emergency" style="width:86px"><div class="state-dot"></div><div class="state-node-box" style="font-size:0.55rem">EMERGENCY</div></div>
+
+    <!-- Feature graph -->
+    <div class="graph-shell">
+      <div class="graph-toolbar">
+        <div class="graph-title">Feature Graph</div>
+        <div class="graph-sub">Live · FeatureManager JSON</div>
+        <span class="cascade-badge" id="cascadeBadge">CASCADE</span>
+        <div class="graph-legend">
+          <span class="legend-chip requires">Requires</span>
+          <span class="legend-chip implies">Implies</span>
+          <span class="legend-chip conflict">Excludes</span>
+          <span class="legend-chip preempts">Preempts</span>
+        </div>
+      </div>
+      <svg id="featureGraph" class="feature-graph" viewBox="0 0 1000 360" preserveAspectRatio="xMidYMid meet" aria-label="Live feature relationship graph"></svg>
+      <div class="graph-note" id="graphNote">Live FeatureManager graph · enabled nodes glow · click a node to toggle · recent command paths flash.</div>
+    </div>
+
+    <!-- Console -->
+    <div class="console-panel">
+      <div class="console-output" id="consoleOutput"></div>
+      <div class="timeline-strip" id="timelineStrip">
+        <span class="timeline-label">EVENTS</span>
+      </div>
+      <div class="console-input-row">
+        <div class="console-prompt-label" id="consolePrompt">[Preflight] ❯</div>
+        <input class="console-input" id="consoleInput" type="text" placeholder="type command or click buttons →" autocomplete="off" spellcheck="false" disabled>
+        <button class="send-btn" onclick="submitCommand()" id="sendBtn" disabled>EXEC</button>
+      </div>
+    </div>
+
+    <!-- Status bar inside center col -->
+    <div class="status-bar">
+      <div style="display:flex;align-items:center;gap:5px"><div class="sdot on"></div>WASM ACTIVE</div>
+      <div style="display:flex;align-items:center;gap:5px"><div class="sdot" id="dot-arm"></div>ARMED</div>
+      <div style="display:flex;align-items:center;gap:5px"><div class="sdot" id="dot-fly"></div>AIRBORNE</div>
+      <div style="margin-left:auto;color:var(--accent);font-family:'Orbitron';font-size:0.58rem;letter-spacing:0.1em">
+        CommandParser::execute() · real C++ · clang-18 wasm32-wasi</div>
     </div>
   </div>
 
-  <div class="console-panel panel">
-    <div class="panel-header">Console · Real CommandParser::execute()</div>
-    <div class="console-output" id="consoleOutput"></div>
-    <div class="console-input-row">
-      <div class="console-prompt-label" id="consolePrompt">[Preflight] ❯</div>
-      <input class="console-input" id="consoleInput" type="text" placeholder="type command or click buttons →" autocomplete="off" spellcheck="false" disabled>
-      <button class="send-btn" onclick="submitCommand()" id="sendBtn" disabled>EXEC</button>
-    </div>
-  </div>
-
-  <aside class="right-panel panel">
+  <!-- ══════════════════════════════════════════════ RIGHT PANEL -->
+  <aside class="right-panel">
     <div class="panel-header">Quick Actions</div>
-    <div class="actions-grid">
-      <button class="action-btn" id="btn-arm"             onclick="doCmd('arm')">            <span class="bi">🔒</span>ARM</button>
-      <button class="action-btn" id="btn-disarm"          onclick="doCmd('disarm')">         <span class="bi">🔓</span>DISARM</button>
-      <button class="action-btn" id="btn-takeoff"         onclick="doCmd('takeoff')">        <span class="bi">🚀</span>TAKEOFF</button>
-      <button class="action-btn" id="btn-land"            onclick="doCmd('land')">           <span class="bi">🛬</span>LAND</button>
-      <button class="action-btn full-width" id="btn-lc"   onclick="doCmd('landing_complete')"><span class="bi">✅</span>LANDING COMPLETE</button>
-      <button class="action-btn" id="btn-status"          onclick="doCmd('status')">         <span class="bi">📊</span>STATUS</button>
-      <button class="action-btn" id="btn-log"             onclick="doCmd('log 20')">         <span class="bi">📋</span>LOG</button>
-      <button class="action-btn" id="btn-json"            onclick="doCmd('json')">           <span class="bi">{ }</span>JSON</button>
-      <button class="action-btn full-width emerg" id="btn-emergency" onclick="doEmergency()"><span class="bi">🚨</span>EMERGENCY STOP</button>
-      <button class="action-btn full-width" id="btn-reset" onclick="doCmd('reset')">         <span class="bi">↺</span>RESET FROM EMERGENCY</button>
+
+    <!-- Guard preview: always present, opacity toggle only -->
+    <div class="guard-preview" id="guardPreview">
+      <span class="guard-icon" id="guardPreviewIcon"></span>
+      <span id="guardPreviewText"></span>
     </div>
 
-    <div class="panel-header" style="margin-top:8px">Telemetry · Live</div>
+    <div class="actions-grid">
+      <button class="action-btn" id="btn-arm"
+        onmouseenter="showGuard('arm')" onmouseleave="hideGuard()"
+        onclick="doCmd('arm')"><span class="bi">🔒</span>ARM</button>
+      <button class="action-btn" id="btn-disarm"
+        onmouseenter="showGuard('disarm')" onmouseleave="hideGuard()"
+        onclick="doCmd('disarm')"><span class="bi">🔓</span>DISARM</button>
+      <button class="action-btn" id="btn-takeoff"
+        onmouseenter="showGuard('takeoff')" onmouseleave="hideGuard()"
+        onclick="doCmd('takeoff')"><span class="bi">🚀</span>TAKEOFF</button>
+      <button class="action-btn" id="btn-land"
+        onmouseenter="showGuard('land')" onmouseleave="hideGuard()"
+        onclick="doCmd('land')"><span class="bi">🛬</span>LAND</button>
+      <button class="action-btn full-width" id="btn-lc"
+        onmouseenter="showGuard('landing_complete')" onmouseleave="hideGuard()"
+        onclick="doCmd('landing_complete')"><span class="bi">✅</span>LANDING COMPLETE</button>
+      <button class="action-btn" id="btn-status" onclick="doCmd('status')"><span class="bi">📊</span>STATUS</button>
+      <button class="action-btn" id="btn-log" onclick="doCmd('log 20')"><span class="bi">📋</span>LOG</button>
+      <button class="action-btn" id="btn-json" onclick="doCmd('json')"><span class="bi">{ }</span>JSON</button>
+      <button class="action-btn full-width emerg" id="btn-emergency" onclick="doEmergency()"><span class="bi">🚨</span>EMERGENCY STOP</button>
+      <button class="action-btn full-width" id="btn-reset" onclick="doCmd('reset')"><span class="bi">↺</span>RESET FROM EMERGENCY</button>
+    </div>
+
+    <div class="panel-header" style="margin-top:6px">Telemetry · Live</div>
     <div class="telem-section">
       <div class="telem-entry"><span class="telem-label">VEHICLE STATE</span><span class="telem-value" id="tel-state">—</span></div>
       <div class="telem-entry"><span class="telem-label">ENABLED SUBSYS</span><span class="telem-value" id="tel-count">—</span></div>
@@ -258,13 +551,6 @@ header{display:flex;align-items:center;justify-content:space-between;padding:14p
     </div>
   </aside>
 
-  <div class="status-bar">
-    <div style="display:flex;align-items:center;gap:6px"><div class="sdot on"></div>WASM ACTIVE</div>
-    <div style="display:flex;align-items:center;gap:6px"><div class="sdot" id="dot-arm"></div>ARMED</div>
-    <div style="display:flex;align-items:center;gap:6px"><div class="sdot" id="dot-fly"></div>AIRBORNE</div>
-    <div style="margin-left:auto;color:var(--accent);font-family:'Orbitron';font-size:0.6rem;letter-spacing:0.1em">
-      CommandParser::execute() · real C++ · clang-18 wasm32-wasi</div>
-  </div>
 </div>
 
 <script>
@@ -286,7 +572,6 @@ async function initWasm() {
   setProgress(10, 'Decoding WASM binary...');
   await new Promise(r => setTimeout(r, 30));
 
-  // Decode base64 → Uint8Array
   const b64 = WASM_B64;
   const binStr = atob(b64);
   const bytes = new Uint8Array(binStr.length);
@@ -296,20 +581,9 @@ async function initWasm() {
   await new Promise(r => setTimeout(r, 30));
 
   const wasi = {
-    environ_get: (cp, bp) => {
-      new DataView(wasmExports.memory.buffer).setInt32(cp, 0, true);
-      new DataView(wasmExports.memory.buffer).setInt32(bp, 0, true);
-      return 0;
-    },
-    environ_sizes_get: (cp, bp) => {
-      new DataView(wasmExports.memory.buffer).setInt32(cp, 0, true);
-      new DataView(wasmExports.memory.buffer).setInt32(bp, 0, true);
-      return 0;
-    },
-    clock_time_get: (id, prec, rp) => {
-      new DataView(wasmExports.memory.buffer).setBigInt64(rp, BigInt(Date.now()) * 1000000n, true);
-      return 0;
-    },
+    environ_get: (cp, bp) => { new DataView(wasmExports.memory.buffer).setInt32(cp,0,true); new DataView(wasmExports.memory.buffer).setInt32(bp,0,true); return 0; },
+    environ_sizes_get: (cp, bp) => { new DataView(wasmExports.memory.buffer).setInt32(cp,0,true); new DataView(wasmExports.memory.buffer).setInt32(bp,0,true); return 0; },
+    clock_time_get: (id, prec, rp) => { new DataView(wasmExports.memory.buffer).setBigInt64(rp, BigInt(Date.now())*1000000n, true); return 0; },
     fd_close: () => 0,
     fd_fdstat_get: () => 0,
     fd_read: () => 0,
@@ -317,7 +591,7 @@ async function initWasm() {
     fd_write: (fd, iov, iovlen, nwp) => {
       let total = 0;
       const dv = new DataView(wasmExports.memory.buffer);
-      for (let i = 0; i < iovlen; i++) total += dv.getInt32(iov + i * 8 + 4, true);
+      for (let i = 0; i < iovlen; i++) total += dv.getInt32(iov + i*8 + 4, true);
       dv.setInt32(nwp, total, true);
       return 0;
     },
@@ -330,7 +604,6 @@ async function initWasm() {
   setProgress(70, 'Initializing drone simulation...');
   await new Promise(r => setTimeout(r, 30));
 
-  // Run static constructors
   wasmExports.__wasm_call_ctors();
 
   setProgress(100, 'Ready');
@@ -346,33 +619,54 @@ async function initWasm() {
 // ============================================================
 //  WASM bridge
 // ============================================================
-function wasmExec(cmdStr) {
-  const { memory, execute_command, free_result, malloc, free } = wasmExports;
+function readResultCString(resultPtr) {
+  const view = new Uint8Array(wasmExports.memory.buffer);
+  let end = resultPtr;
+  while (view[end] !== 0) end++;
+  return dec.decode(view.slice(resultPtr, end));
+}
+
+function callCommandExport(exportName, cmdStr) {
+  const { memory, free_result, malloc, free } = wasmExports;
+  const commandFn = wasmExports[exportName];
+  if (typeof commandFn !== 'function') return null;
   const bytes = enc.encode(cmdStr + '\0');
   const ptr = malloc(bytes.length);
   new Uint8Array(memory.buffer, ptr, bytes.length).set(bytes);
   let resultPtr;
-  try {
-    resultPtr = execute_command(ptr);
-  } catch(e) {
-    free(ptr);
-    return { success: false, quit: false, message: 'WASM error: ' + e.message };
-  }
+  try { resultPtr = commandFn(ptr); } catch(e) { free(ptr); throw e; }
   free(ptr);
-  const view = new Uint8Array(memory.buffer);
-  let end = resultPtr;
-  while (view[end] !== 0) end++;
-  const raw = dec.decode(view.slice(resultPtr, end));
+  const raw = readResultCString(resultPtr);
   free_result(resultPtr);
-  // Format: "success|quit|message"
-  const pipe1 = raw.indexOf('|');
-  const pipe2 = raw.indexOf('|', pipe1 + 1);
-  return {
-    success: raw[0] === '1',
-    quit: raw[pipe1 + 1] === '1',
-    message: raw.slice(pipe2 + 1),
-  };
+  return raw;
 }
+
+function legacyWasmExec(cmdStr) {
+  let raw;
+  try { raw = callCommandExport('execute_command', cmdStr); }
+  catch(e) { return { success:false, quit:false, message:'WASM error: '+e.message, transport:'legacy-error' }; }
+  if (raw == null) return { success:false, quit:false, message:'WASM export missing: execute_command', transport:'legacy-missing' };
+  const pipe1 = raw.indexOf('|');
+  const pipe2 = raw.indexOf('|', pipe1+1);
+  return { success: raw[0]==='1', quit: raw[pipe1+1]==='1', message: raw.slice(pipe2+1), transport:'legacy' };
+}
+
+function jsonBridgeExec(cmdStr) {
+  if (typeof wasmExports.execute_command_json !== 'function') return null;
+  try {
+    const raw = callCommandExport('execute_command_json', cmdStr);
+    if (raw == null) return null;
+    const parsed = JSON.parse(raw);
+    parsed.transport = 'bridge-json';
+    return parsed;
+  } catch(e) {
+    appendLine('Bridge JSON parse failed, falling back to legacy: '+e.message, 'log-warn');
+    return null;
+  }
+}
+
+function runQueryCommand(cmdStr) { return legacyWasmExec(cmdStr); }
+function wasmExec(cmdStr) { return jsonBridgeExec(cmdStr) || legacyWasmExec(cmdStr); }
 
 function wasmGetState() {
   const { memory, get_state_name } = wasmExports;
@@ -387,10 +681,7 @@ function wasmGetState() {
 //  Console UI
 // ============================================================
 const output = document.getElementById('consoleOutput');
-
-function esc(str) {
-  return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-}
+function esc(str) { return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
 function appendLine(text, cls) {
   const now = new Date();
@@ -405,23 +696,89 @@ function appendLine(text, cls) {
   output.scrollTop = output.scrollHeight;
 }
 
+// Typed log entry with icon
+function appendTypedEntry(entry) {
+  const iconMap = { ENABLED:'✓', DISABLED:'○', STATE:'◈', SAFETY:'⚠', ERROR:'✗', REJECTED:'✗', OTHER:'·' };
+  const clsMap = { ENABLED:'log-type-enabled log-success', DISABLED:'log-type-disabled log-dim', STATE:'log-type-state log-info', SAFETY:'log-type-safety log-warn', ERROR:'log-type-error log-error', REJECTED:'log-type-error log-error', OTHER:'log-info' };
+  const icon = iconMap[entry.kind] || '·';
+  const cls = clsMap[entry.kind] || 'log-info';
+  const now = new Date();
+  const ts = `${now.getHours().toString().padStart(2,'0')}:${now.getMinutes().toString().padStart(2,'0')}:${now.getSeconds().toString().padStart(2,'0')}`;
+  const el = document.createElement('div');
+  el.className = 'log-entry';
+  const text = entry.kind === 'STATE' ? `${entry.from} → ${entry.to}` : (entry.detail || entry.line);
+  el.innerHTML = `<span class="log-time">${ts}</span><span class="log-msg ${cls}"><span class="log-icon">${icon}</span>${esc(text)}</span>`;
+  output.appendChild(el);
+  output.scrollTop = output.scrollHeight;
+}
+
+// Timeline strip
+function addTimelinePip(entry) {
+  const strip = document.getElementById('timelineStrip');
+  const pip = document.createElement('span');
+  const clsMap = { ENABLED:'tl-enabled', DISABLED:'tl-disabled', STATE:'tl-state', SAFETY:'tl-safety', ERROR:'tl-error', REJECTED:'tl-error' };
+  pip.className = 'tl-pip ' + (clsMap[entry.kind] || 'tl-state');
+  const label = entry.kind === 'STATE' ? `${entry.from}→${entry.to}` : (entry.name || entry.detail || entry.kind);
+  const titleEl = document.createElementNS ? null : null;
+  pip.title = label;
+  strip.appendChild(pip);
+  strip.scrollLeft = strip.scrollWidth;
+}
+
+function normalizeBridgeSnapshot(rawSnapshot) {
+  if (!rawSnapshot || typeof rawSnapshot !== 'object') return null;
+  try { return normalizeFeatureSnapshot(rawSnapshot); }
+  catch(e) { appendLine('Bridge snapshot parse failed: '+e.message, 'log-error'); return null; }
+}
+
+function getLogLines(limit = 256) {
+  const result = runQueryCommand(`log ${limit}`);
+  if (!result.success) return [];
+  return result.message.split('\n').map(l => l.trimRight()).filter(Boolean);
+}
+
+function computeLogDelta(beforeLines, afterLines) {
+  let prefix = 0;
+  while (prefix < beforeLines.length && prefix < afterLines.length && beforeLines[prefix] === afterLines[prefix]) prefix++;
+  return afterLines.slice(prefix);
+}
+
 function submitCommand() {
   const inp = document.getElementById('consoleInput');
   const val = inp.value.trim();
   if (!val || !wasmExports) return;
   inp.value = '';
 
-  appendLine(`[${wasmGetState()}] ❯ ${val}`, 'log-dim');
+  const prevSnapshot = currentSnapshot || getFeatureSnapshot();
+  const prevState = currentStateName || wasmGetState();
+  const prevLogLines = getLogLines();
+
+  appendLine(`[${prevState}] ❯ ${val}`, 'log-dim');
 
   const result = wasmExec(val);
-  if (result.message) {
+  const nextState = result.state_after || wasmGetState();
+  const nextSnapshot = normalizeBridgeSnapshot(result.snapshot_after) || getFeatureSnapshot();
+  const nextLogLines = Array.isArray(result.log_delta) ? null : getLogLines();
+  const logDelta = Array.isArray(result.log_delta) ? result.log_delta.slice() : computeLogDelta(prevLogLines, nextLogLines || []);
+
+  result.state_before = result.state_before || prevState;
+  result.state_after = nextState;
+  result.log_delta = logDelta;
+
+  // Typed log entries
+  const entries = parseLogEntries(logDelta);
+  if (entries.length > 0) {
+    entries.forEach(e => { appendTypedEntry(e); addTimelinePip(e); });
+  } else if (result.message) {
     appendLine(result.message, result.success ? 'log-success' : 'log-error');
   }
-  if (result.quit) {
-    appendLine('Session ended.', 'log-warn');
-  }
 
-  refreshUI();
+  if (result.quit) appendLine('Session ended.', 'log-warn');
+
+  refreshUI({
+    command: val, result, prevSnapshot, prevState,
+    nextState, nextSnapshot, logDelta,
+  });
 }
 
 function doCmd(cmd) {
@@ -435,13 +792,187 @@ function doEmergency() {
 }
 
 function toggleSub(name) {
-  const result = wasmExec('status');
-  const enabled = result.message.includes('  ' + name + '\n') || result.message.includes('  ' + name + '\r');
+  const snapshot = currentSnapshot || getFeatureSnapshot();
+  const enabled = snapshot ? snapshot.enabledSet.has(name) : false;
   doCmd((enabled ? 'disable ' : 'enable ') + name);
 }
 
+function enableAllArmRequirements() {
+  const snapshot = currentSnapshot || getFeatureSnapshot();
+  const missing = ARM_REQUIRED.filter(n => !snapshot || !snapshot.enabledSet.has(n));
+  if (!missing.length) return;
+  missing.forEach(n => doCmd('enable ' + n));
+}
+
+function activateMode(mode) {
+  const snapshot = currentSnapshot || getFeatureSnapshot();
+  // Disable other modes first
+  FLIGHT_MODES.forEach(m => {
+    if (m !== mode && snapshot && snapshot.enabledSet.has(m)) doCmd('disable ' + m);
+  });
+  doCmd('enable ' + mode);
+}
+
 // ============================================================
-//  UI refresh - reads live state from WASM
+//  Guard preview (right panel) - opacity only, no layout shift
+// ============================================================
+function getGuardText(action) {
+  const snapshot = currentSnapshot || getFeatureSnapshot();
+  const enabled = snapshot ? snapshot.enabledSet : new Set();
+  const state = currentStateName || 'Preflight';
+
+  if (action === 'arm') {
+    const missing = ARM_REQUIRED.filter(n => !enabled.has(n));
+    if (state !== 'Preflight') return { ok: false, text: `Need Preflight state (currently ${state})` };
+    if (missing.length) return { ok: false, text: `Missing: ${missing.join(', ')}` };
+    return { ok: true, text: 'All arm requirements met — ready to ARM' };
+  }
+  if (action === 'disarm') {
+    if (state !== 'Armed') return { ok: false, text: `Need Armed state (currently ${state})` };
+    return { ok: true, text: 'Armed — ready to DISARM' };
+  }
+  if (action === 'takeoff') {
+    if (state !== 'Armed') return { ok: false, text: `Need Armed state (currently ${state})` };
+    const mode = FLIGHT_MODES.find(m => enabled.has(m));
+    if (!mode) return { ok: false, text: 'No flight mode enabled' };
+    return { ok: true, text: `Mode: ${mode} — ready to TAKEOFF` };
+  }
+  if (action === 'land') {
+    if (state !== 'Flying') return { ok: false, text: `Need Flying state (currently ${state})` };
+    return { ok: true, text: 'Flying — ready to LAND' };
+  }
+  if (action === 'landing_complete') {
+    if (state !== 'Landing') return { ok: false, text: `Need Landing state (currently ${state})` };
+    return { ok: true, text: 'Landing — ready to complete' };
+  }
+  return null;
+}
+
+function showGuard(action) {
+  const info = getGuardText(action);
+  if (!info) return;
+  const el = document.getElementById('guardPreview');
+  const icon = document.getElementById('guardPreviewIcon');
+  const text = document.getElementById('guardPreviewText');
+  icon.textContent = info.ok ? '✓' : '✗';
+  text.textContent = info.text;
+  el.className = 'guard-preview visible ' + (info.ok ? 'ok' : 'blocked');
+}
+
+function hideGuard() {
+  document.getElementById('guardPreview').className = 'guard-preview';
+}
+
+// ============================================================
+//  State machine guard labels (sm-strip) - opacity only
+// ============================================================
+function updateSmGuards(state, enabledSet) {
+  // arm arrow/guard
+  const armMissing = ARM_REQUIRED.filter(n => !enabledSet.has(n));
+  const armOk = state === 'Preflight' && armMissing.length === 0;
+  const armBlocked = state !== 'Preflight' || armMissing.length > 0;
+  setSmGuard('guard-Preflight', armOk ? '✓ ready to arm' : (armMissing.length ? `✗ need ${armMissing.length} more` : ''), armOk ? 'ok' : (armBlocked ? 'blocked' : ''));
+  setSmArrow('arrow-arm', state === 'Preflight', armOk);
+
+  // takeoff arrow/guard
+  const hasMode = FLIGHT_MODES.some(m => enabledSet.has(m));
+  const takeoffOk = state === 'Armed' && hasMode;
+  setSmGuard('guard-Armed', state === 'Armed' ? (hasMode ? '✓ ready' : '✗ no flight mode') : '', state === 'Armed' ? (hasMode ? 'ok' : 'blocked') : '');
+  setSmArrow('arrow-takeoff', state === 'Armed', takeoffOk);
+
+  // land
+  setSmGuard('guard-Flying', state === 'Flying' ? '✓ ready to land' : '', state === 'Flying' ? 'ok' : '');
+  setSmArrow('arrow-land', state === 'Flying', state === 'Flying');
+
+  // landing
+  setSmGuard('guard-Landing', state === 'Landing' ? '✓ complete' : '', state === 'Landing' ? 'ok' : '');
+}
+
+function setSmGuard(id, text, cls) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  // Only update textContent if it actually changed — prevents reflow
+  if (el.dataset.lastText !== text) { el.textContent = text; el.dataset.lastText = text; }
+  el.className = 'state-guard' + (cls ? ' ' + cls : '');
+}
+
+function setSmArrow(id, active, ready) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.className = 'sm-arrow' + (ready ? ' reachable' : (active ? ' blocked-arrow' : ''));
+}
+
+// ============================================================
+//  Arm checklist (left panel)
+// ============================================================
+function updateArmChecklist(enabledSet) {
+  const container = document.getElementById('arm-checklist-items');
+  if (!container) return;
+  container.innerHTML = '';
+  ARM_REQUIRED.forEach(name => {
+    const ok = enabledSet.has(name);
+    const row = document.createElement('div');
+    row.className = 'arm-check-item ' + (ok ? 'ok' : 'missing');
+    row.innerHTML = `<div class="arm-check-dot ${ok ? 'ok' : 'missing'}"></div><span class="arm-check-label">${name}</span>`;
+    container.appendChild(row);
+  });
+}
+
+// ============================================================
+//  Missing subsystem pulse (left panel)
+// ============================================================
+function flashMissingSubsystems(enabledSet) {
+  ARM_REQUIRED.forEach(name => {
+    const item = document.getElementById('sub-' + name);
+    if (!item) return;
+    if (!enabledSet.has(name)) {
+      item.classList.remove('missing');
+      void item.offsetWidth; // force reflow to restart animation
+      item.classList.add('missing');
+    }
+  });
+}
+
+// ============================================================
+//  Cascade effect (left panel + graph)
+// ============================================================
+function applyCascadeEffect(prevSnapshot, nextSnapshot) {
+  if (!prevSnapshot || !nextSnapshot) return;
+  const prevEnabled = prevSnapshot.enabledSet;
+  const nextEnabled = nextSnapshot.enabledSet;
+  const newlyEnabled = [...nextEnabled].filter(n => !prevEnabled.has(n));
+  if (newlyEnabled.length <= 1) return; // single toggle, no cascade interest
+
+  const badge = document.getElementById('cascadeBadge');
+  badge.classList.add('visible');
+  setTimeout(() => badge.classList.remove('visible'), 2500);
+
+  // Highlight newly-enabled nodes that weren't directly toggled
+  newlyEnabled.forEach(name => {
+    const item = document.getElementById('sub-' + name);
+    if (item) {
+      item.classList.remove('cascade');
+      void item.offsetWidth;
+      item.classList.add('cascade');
+    }
+    // Graph cascade highlight
+    const el = graphState.nodeEls.get(name);
+    if (el) { el.classList.add('cascade-new'); setTimeout(() => el.classList.remove('cascade-new'), 2500); }
+  });
+
+  // Cascade edges
+  graphState.edgeEls.forEach((el, key) => {
+    const edge = graphState.edgeMeta.get(key);
+    if (!edge) return;
+    if (newlyEnabled.includes(edge.source) && newlyEnabled.includes(edge.target)) {
+      el.classList.add('cascade-live');
+      setTimeout(() => el.classList.remove('cascade-live'), 2500);
+    }
+  });
+}
+
+// ============================================================
+//  State / data constants
 // ============================================================
 const ARM_REQUIRED = ['IMU','Barometer','BatteryMonitor','ESC','MotorMix','RCReceiver'];
 const FLIGHT_MODES = ['Manual','Stabilize','AltHold','PosHold','Autonomous','RTL'];
@@ -452,21 +983,461 @@ const ALL_SUBSYSTEMS = [
   'Manual','Stabilize','AltHold','PosHold','Autonomous','RTL',
   'Geofence','Failsafe','CollisionAvoidance','EmergencyStop'
 ];
+const GROUP_ORDER = ['FlightModes','Sensors','Power','Comms','Safety'];
+const DISPLAY_NAME_MAP = { BatteryMonitor:'BatteryMon', CollisionAvoidance:'CollisionAvoid' };
+const GRAPH_LAYOUTS = {
+  FlightModes: { x:248, y:18, w:504, h:108, cols:3 },
+  Sensors:     { x:24, y:156, w:220, h:176, cols:2 },
+  Power:       { x:268, y:216, w:186, h:116, cols:1 },
+  Comms:       { x:478, y:216, w:184, h:116, cols:1 },
+  Safety:      { x:686, y:174, w:290, h:158, cols:2 },
+  Other:       { x:24, y:332, w:952, h:20, cols:4 }
+};
+const GRAPH_EDGE_META = {
+  Requires:          { className:'requires', marker:'url(#graph-arrow-accent)' },
+  Implies:           { className:'implies', marker:'url(#graph-arrow-green)' },
+  MutuallyExclusive: { className:'conflict', marker:'' },
+  Preempts:          { className:'preempts', marker:'url(#graph-arrow-danger)' },
+};
+const DEFAULT_GRAPH_NOTE = 'Live FeatureManager graph · enabled nodes glow · click a node to toggle · recent command paths flash.';
 
-function refreshUI() {
-  const statusResult = wasmExec('status');
-  const statusText = statusResult.message;
-  const state = wasmGetState();
+let currentSnapshot = null;
+let currentStateName = 'Preflight';
+let graphBuiltSignature = '';
+let graphStickyNote = DEFAULT_GRAPH_NOTE;
+let graphState = { nodeEls:new Map(), edgeEls:new Map(), nodeMeta:new Map(), edgeMeta:new Map(), adjacency:new Map(), transientTimers:[] };
 
-  // Parse enabled subsystems from status output
+function displayFeatureName(name) { return DISPLAY_NAME_MAP[name] || name; }
+
+function setGraphNote(text, sticky = false) {
+  const el = document.getElementById('graphNote');
+  if (!el) return;
+  if (sticky) graphStickyNote = text || DEFAULT_GRAPH_NOTE;
+  el.textContent = sticky ? graphStickyNote : (text || graphStickyNote);
+}
+function restoreGraphNote() { setGraphNote(graphStickyNote || DEFAULT_GRAPH_NOTE, false); }
+
+function parseEnabledSetFromStatus(statusText) {
   const enabledSet = new Set();
-  const lines = statusText.split('\n');
-  for (const line of lines) {
+  for (const line of statusText.split('\n')) {
     const trimmed = line.trim();
     if (ALL_SUBSYSTEMS.includes(trimmed)) enabledSet.add(trimmed);
   }
+  return enabledSet;
+}
 
-  // Header state
+function getFeatureSnapshot() {
+  const result = runQueryCommand('json');
+  if (!result.success) return null;
+  try { return normalizeFeatureSnapshot(JSON.parse(result.message)); }
+  catch(e) { appendLine('Graph JSON parse failed: '+e.message, 'log-error'); return null; }
+}
+
+function normalizeFeatureSnapshot(raw) {
+  const features = raw.features || {};
+  const groups = raw.groups || {};
+  const groupMap = {};
+  const assigned = new Set();
+
+  Object.entries(groups).forEach(([groupName, names]) => {
+    const validNames = (Array.isArray(names) ? names : []).filter(name => features[name]);
+    if (!validNames.length) return;
+    groupMap[groupName] = validNames;
+    validNames.forEach(name => assigned.add(name));
+  });
+
+  const leftovers = Object.keys(features).filter(name => !assigned.has(name)).sort();
+  if (leftovers.length) groupMap.Other = leftovers;
+
+  const enabledSet = new Set(Object.entries(features).filter(([,m]) => !!m.enabled).map(([name]) => name));
+
+  const edges = [];
+  const seenEdges = new Set();
+  const relationKeys = ['Requires','Implies','MutuallyExclusive','Preempts'];
+
+  Object.entries(features).forEach(([name, meta]) => {
+    relationKeys.forEach(kind => {
+      const targets = Array.isArray(meta[kind]) ? meta[kind] : [];
+      targets.forEach(target => {
+        if (!features[target]) return;
+        const key = kind === 'MutuallyExclusive'
+          ? `${kind}|${[name,target].sort().join('|')}`
+          : `${kind}|${name}|${target}`;
+        if (seenEdges.has(key)) return;
+        seenEdges.add(key);
+        edges.push({ key, type:kind, source:name, target, directed:kind !== 'MutuallyExclusive' });
+      });
+    });
+  });
+
+  edges.sort((a,b) => a.type.localeCompare(b.type) || a.source.localeCompare(b.source) || a.target.localeCompare(b.target));
+
+  const signature = JSON.stringify({
+    features: Object.keys(features).sort(),
+    groups: Object.keys(groupMap).sort(),
+    edges: edges.map(e => e.key),
+  });
+
+  return { raw, features, groups:groupMap, edges, enabledSet, signature };
+}
+
+// ============================================================
+//  Graph rendering
+// ============================================================
+function svgEl(tag, attrs = {}) {
+  const el = document.createElementNS('http://www.w3.org/2000/svg', tag);
+  Object.entries(attrs).forEach(([k,v]) => { if (v !== undefined && v !== null) el.setAttribute(k,v); });
+  return el;
+}
+
+function buildGraphDefs() {
+  const defs = svgEl('defs');
+  [{ id:'graph-arrow-accent', color:'var(--accent)' }, { id:'graph-arrow-green', color:'var(--accent2)' }, { id:'graph-arrow-danger', color:'var(--danger)' }]
+    .forEach(({ id, color }) => {
+      const marker = svgEl('marker', { id, viewBox:'0 0 10 10', refX:'9', refY:'5', markerWidth:'7', markerHeight:'7', orient:'auto-start-reverse', markerUnits:'strokeWidth' });
+      marker.appendChild(svgEl('path', { d:'M 0 0 L 10 5 L 0 10 z', fill:color }));
+      defs.appendChild(marker);
+    });
+  return defs;
+}
+
+function computeGraphLayout(snapshot) {
+  const boxes = [], nodeMap = new Map();
+  const groupNames = [...GROUP_ORDER, ...Object.keys(snapshot.groups).filter(name => !GROUP_ORDER.includes(name))];
+  const placed = new Set();
+
+  groupNames.forEach(groupName => {
+    const names = (snapshot.groups[groupName] || []).filter(name => snapshot.features[name]);
+    if (!names.length) return;
+    const layout = GRAPH_LAYOUTS[groupName] || GRAPH_LAYOUTS.Other;
+    const cols = Math.max(1, Math.min(layout.cols || 1, names.length));
+    const gapX = 10, gapY = 10;
+    const innerX = layout.x + 12, innerY = layout.y + 30;
+    const nodeW = Math.min(150, (layout.w - 24 - (cols-1)*gapX) / cols);
+    const nodeH = 28;
+
+    boxes.push({ name:groupName, ...layout });
+    names.forEach((name, idx) => {
+      const col = idx % cols, row = Math.floor(idx / cols);
+      nodeMap.set(name, { x:innerX+col*(nodeW+gapX), y:innerY+row*(nodeH+gapY), w:nodeW, h:nodeH, groupName });
+      placed.add(name);
+    });
+  });
+
+  Object.keys(snapshot.features).filter(name => !placed.has(name)).forEach((name, idx) => {
+    const layout = GRAPH_LAYOUTS.Other;
+    const cols = Math.max(1, layout.cols || 1);
+    const gapX = 12;
+    const nodeW = Math.min(150, (layout.w - 24 - (cols-1)*gapX) / cols);
+    const nodeH = 28;
+    nodeMap.set(name, { x:layout.x+12+(idx%cols)*(nodeW+gapX), y:layout.y+30+Math.floor(idx/cols)*(nodeH+10), w:nodeW, h:nodeH, groupName:'Other' });
+  });
+
+  return { boxes, nodeMap };
+}
+
+function nodeCenter(node) { return { x:node.x+node.w/2, y:node.y+node.h/2 }; }
+
+function edgeAnchor(node, toward) {
+  const center = nodeCenter(node);
+  const dx = toward.x - center.x, dy = toward.y - center.y;
+  if (Math.abs(dx) > Math.abs(dy)) {
+    return { x:center.x+Math.sign(dx||1)*node.w/2, y:center.y+(node.h/2)*(dy/Math.max(Math.abs(dx),1)) };
+  }
+  return { x:center.x+(node.w/2)*(dx/Math.max(Math.abs(dy),1)), y:center.y+Math.sign(dy||1)*node.h/2 };
+}
+
+function edgePath(sourceNode, targetNode, type) {
+  const sourceCenter = nodeCenter(sourceNode), targetCenter = nodeCenter(targetNode);
+  const start = edgeAnchor(sourceNode, targetCenter), end = edgeAnchor(targetNode, sourceCenter);
+  if (type === 'MutuallyExclusive') {
+    const dx = end.x-start.x, dy = end.y-start.y;
+    const dist = Math.max(Math.hypot(dx,dy),1);
+    const midX = (start.x+end.x)/2, midY = (start.y+end.y)/2;
+    const nx = -dy/dist, ny = dx/dist;
+    const curve = Math.min(52, Math.max(18, dist*0.18));
+    return `M ${start.x} ${start.y} Q ${midX+nx*curve} ${midY+ny*curve} ${end.x} ${end.y}`;
+  }
+  const dx = end.x-start.x;
+  const bend = Math.min(92, Math.max(20, Math.abs(dx)*0.32));
+  return `M ${start.x} ${start.y} C ${start.x+bend} ${start.y}, ${end.x-bend} ${end.y}, ${end.x} ${end.y}`;
+}
+
+function buildNodeTitle(name, meta) {
+  const lines = [name, meta.enabled ? 'Enabled' : 'Disabled'];
+  ['Requires','Implies','MutuallyExclusive','Preempts'].forEach(kind => {
+    const values = Array.isArray(meta[kind]) ? meta[kind] : [];
+    if (values.length) lines.push(`${kind}: ${values.join(', ')}`);
+  });
+  return lines.join('\n');
+}
+
+function buildNodeNote(name) {
+  const meta = currentSnapshot && currentSnapshot.features[name] ? currentSnapshot.features[name] : null;
+  if (!meta) return name;
+  const segments = [meta.enabled ? 'enabled' : 'disabled'];
+  ['Requires','Implies','MutuallyExclusive','Preempts'].forEach(kind => {
+    const values = Array.isArray(meta[kind]) ? meta[kind] : [];
+    if (values.length) segments.push(`${kind.toLowerCase()}: ${values.join(', ')}`);
+  });
+  return `${name} · ${segments.join(' · ')}`;
+}
+
+function buildGraph(snapshot) {
+  const svg = document.getElementById('featureGraph');
+  if (!svg) return;
+  graphState.transientTimers.forEach(t => clearTimeout(t));
+  graphBuiltSignature = snapshot.signature;
+  graphState = { nodeEls:new Map(), edgeEls:new Map(), nodeMeta:new Map(), edgeMeta:new Map(), adjacency:new Map(), transientTimers:[] };
+
+  svg.innerHTML = '';
+  svg.appendChild(buildGraphDefs());
+  const groupLayer = svgEl('g'), edgeLayer = svgEl('g'), nodeLayer = svgEl('g');
+  svg.append(groupLayer, edgeLayer, nodeLayer);
+  svg.addEventListener('mouseleave', restoreGraphNote);
+
+  const layout = computeGraphLayout(snapshot);
+
+  layout.boxes.forEach(box => {
+    groupLayer.appendChild(svgEl('rect', { x:box.x, y:box.y, width:box.w, height:box.h, class:'graph-group-box' }));
+    const title = svgEl('text', { x:box.x+14, y:box.y+18, class:'graph-group-title' });
+    title.textContent = box.name;
+    groupLayer.appendChild(title);
+  });
+
+  snapshot.edges.forEach(edge => {
+    const sn = layout.nodeMap.get(edge.source), tn = layout.nodeMap.get(edge.target);
+    if (!sn || !tn) return;
+    const meta = GRAPH_EDGE_META[edge.type] || { className:'requires', marker:'' };
+    const path = svgEl('path', { d:edgePath(sn,tn,edge.type), class:`graph-edge ${meta.className}`, 'data-key':edge.key });
+    if (meta.marker) path.setAttribute('marker-end', meta.marker);
+    const ttl = svgEl('title'); ttl.textContent = `${edge.source} ${edge.type} ${edge.target}`; path.appendChild(ttl);
+    edgeLayer.appendChild(path);
+    graphState.edgeEls.set(edge.key, path);
+    graphState.edgeMeta.set(edge.key, edge);
+    [edge.source, edge.target].forEach(name => {
+      if (!graphState.adjacency.has(name)) graphState.adjacency.set(name, new Set());
+      graphState.adjacency.get(name).add(edge.key);
+    });
+  });
+
+  Object.keys(snapshot.features).forEach(name => {
+    const node = layout.nodeMap.get(name);
+    if (!node) return;
+    const meta = snapshot.features[name];
+    const group = svgEl('g', { class:'graph-node', transform:`translate(${node.x} ${node.y})`, 'data-name':name });
+    group.appendChild(svgEl('rect', { width:node.w, height:node.h }));
+    const label = svgEl('text', { x:node.w/2, y:node.h/2+0.5 }); label.textContent = displayFeatureName(name); group.appendChild(label);
+    const ttl = svgEl('title'); ttl.textContent = buildNodeTitle(name, meta); group.appendChild(ttl);
+    group.addEventListener('mouseenter', () => setGraphNote(buildNodeNote(name), false));
+    group.addEventListener('mouseleave', restoreGraphNote);
+    group.addEventListener('click', evt => { evt.stopPropagation(); toggleSub(name); });
+    nodeLayer.appendChild(group);
+    graphState.nodeEls.set(name, group);
+    graphState.nodeMeta.set(name, { ...node, name });
+  });
+}
+
+function ensureGraph(snapshot) {
+  if (!snapshot) return;
+  if (graphBuiltSignature !== snapshot.signature || !graphState.nodeEls.size) buildGraph(snapshot);
+}
+
+function updateGraph(snapshot) {
+  ensureGraph(snapshot);
+  if (!snapshot) return;
+  const enabledSet = snapshot.enabledSet;
+  graphState.nodeEls.forEach((el, name) => el.classList.toggle('active', enabledSet.has(name)));
+  graphState.edgeEls.forEach((el, key) => {
+    const edge = graphState.edgeMeta.get(key);
+    if (!edge) return;
+    const sourceActive = enabledSet.has(edge.source), targetActive = enabledSet.has(edge.target);
+    el.classList.toggle('live', edge.type === 'MutuallyExclusive' ? (sourceActive || targetActive) : sourceActive);
+  });
+}
+
+function clearGraphTransients() {
+  graphState.transientTimers.forEach(t => clearTimeout(t));
+  graphState.transientTimers = [];
+  graphState.nodeEls.forEach(el => el.classList.remove('flash','blocked'));
+  graphState.edgeEls.forEach(el => el.classList.remove('flash','blocked'));
+}
+
+function escapeRegExp(str) { return str.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'); }
+
+function extractMentionedNodes(text, featureNames) {
+  const found = new Set();
+  if (!text) return found;
+  featureNames.forEach(name => { if (new RegExp(`\\b${escapeRegExp(name)}\\b`).test(text)) found.add(name); });
+  return found;
+}
+
+function collectAdjacentEdges(nodeName, targetSet) {
+  const edges = graphState.adjacency.get(nodeName);
+  if (edges) edges.forEach(key => targetSet.add(key));
+}
+
+function diffEnabled(prevSnapshot, snapshot) {
+  const changedOn = [], changedOff = [];
+  const names = snapshot ? Object.keys(snapshot.features) : [];
+  const prevEnabled = prevSnapshot ? prevSnapshot.enabledSet : new Set();
+  const currEnabled = snapshot ? snapshot.enabledSet : new Set();
+  names.forEach(name => {
+    const was = prevEnabled.has(name), now = currEnabled.has(name);
+    if (was === now) return;
+    (now ? changedOn : changedOff).push(name);
+  });
+  return { changedOn, changedOff };
+}
+
+function edgeKey(type, source, target) {
+  return type === 'MutuallyExclusive' ? `${type}|${[source,target].sort().join('|')}` : `${type}|${source}|${target}`;
+}
+
+function addConnectingEdges(a, b, targetSet) {
+  if (!a || !b || a === b) return;
+  ['Requires','Implies','Preempts','MutuallyExclusive'].forEach(type => {
+    const direct = edgeKey(type,a,b); if (graphState.edgeEls.has(direct)) targetSet.add(direct);
+    if (type !== 'MutuallyExclusive') { const rev = edgeKey(type,b,a); if (graphState.edgeEls.has(rev)) targetSet.add(rev); }
+  });
+}
+
+function parseLogEntry(line) {
+  const trimmed = (line||'').trim();
+  if (!trimmed) return null;
+  let match = trimmed.match(/^\[\+\d+ms\] (ENABLED|DISABLED|ERROR|REJECTED) ([^:]+): (.*)$/);
+  if (match) return { kind:match[1], name:match[2], detail:match[3], line:trimmed };
+  match = trimmed.match(/^\[\+\d+ms\] STATE ([^:]+): ([^ ]+) -> ([^ ]+)$/);
+  if (match) return { kind:'STATE', name:match[1], from:match[2], to:match[3], line:trimmed };
+  match = trimmed.match(/^\[\+\d+ms\] SAFETY (.*)$/);
+  if (match) return { kind:'SAFETY', detail:match[1], line:trimmed };
+  return { kind:'OTHER', line:trimmed };
+}
+
+function parseLogEntries(lines) { return (lines||[]).map(parseLogEntry).filter(Boolean); }
+
+function formatActivityNote(command, entries, fallback) {
+  const labels = entries.map(entry => {
+    switch(entry.kind) {
+      case 'ENABLED': return `enabled ${entry.name}`;
+      case 'DISABLED': return `disabled ${entry.name}`;
+      case 'ERROR': case 'REJECTED': return entry.detail || entry.line;
+      case 'STATE': return `state ${entry.from} → ${entry.to}`;
+      case 'SAFETY': return `safety ${entry.detail}`;
+      default: return entry.line.replace(/^\[\+\d+ms\]\s*/,'');
+    }
+  }).filter(Boolean);
+  if (!labels.length) return fallback;
+  const compact = labels.slice(0,3).join(' · ');
+  return labels.length > 3 ? `${command} → ${compact} · …` : `${command} → ${compact}`;
+}
+
+function summarizeActivity(prevSnapshot, snapshot, context) {
+  const flashNodes = new Set(), blockedNodes = new Set(), flashEdges = new Set(), blockedEdges = new Set();
+  const names = snapshot ? Object.keys(snapshot.features) : [];
+  const pieces = (context.command||'').trim().split(/\s+/).filter(Boolean);
+  const verb = pieces[0] ? pieces[0].toLowerCase() : '';
+  const arg = pieces.slice(1).join(' ');
+  const { changedOn, changedOff } = diffEnabled(prevSnapshot, snapshot);
+  const logEntries = parseLogEntries(context.logDelta || context.result?.log_delta || []);
+  const mentioned = new Set();
+
+  logEntries.forEach(entry => {
+    if ((entry.kind==='ENABLED'||entry.kind==='DISABLED') && entry.name) flashNodes.add(entry.name);
+    if ((entry.kind==='ERROR'||entry.kind==='REJECTED') && entry.name && snapshot.features[entry.name]) blockedNodes.add(entry.name);
+    extractMentionedNodes(entry.detail||entry.line, names).forEach(name => {
+      mentioned.add(name);
+      if (entry.kind==='ERROR'||entry.kind==='REJECTED') blockedNodes.add(name);
+    });
+  });
+
+  if (!flashNodes.size) changedOn.concat(changedOff).forEach(name => flashNodes.add(name));
+  if (!blockedNodes.size && context.result && !context.result.success) {
+    extractMentionedNodes(context.result.message||'', names).forEach(name => blockedNodes.add(name));
+  }
+
+  if (arg && snapshot.features[arg] && (verb==='enable'||verb==='disable')) flashNodes.add(arg);
+  if (verb==='arm') ARM_REQUIRED.forEach(name => flashNodes.add(name));
+  if (verb==='takeoff') {
+    const activeModes = FLIGHT_MODES.filter(name => snapshot.enabledSet.has(name));
+    (activeModes.length ? activeModes : FLIGHT_MODES).forEach(name => flashNodes.add(name));
+  }
+  if (verb==='emergency') flashNodes.add('EmergencyStop');
+
+  if (context.result && !context.result.success) {
+    if (verb==='arm' && !blockedNodes.size) {
+      const prevEnabled = prevSnapshot ? prevSnapshot.enabledSet : new Set();
+      ARM_REQUIRED.filter(name => !prevEnabled.has(name)).forEach(name => blockedNodes.add(name));
+    }
+    if (/no flight mode/i.test(context.result.message||'')) FLIGHT_MODES.forEach(name => blockedNodes.add(name));
+    if (!blockedNodes.size && arg && snapshot.features[arg]) blockedNodes.add(arg);
+  }
+
+  const flashNames = [...flashNodes];
+  for (let i=0; i<flashNames.length; i++) for (let j=i+1; j<flashNames.length; j++) addConnectingEdges(flashNames[i],flashNames[j],flashEdges);
+  if (arg && snapshot.features[arg]) flashNames.forEach(name => addConnectingEdges(arg,name,flashEdges));
+  mentioned.forEach(name => { if (arg && snapshot.features[arg]) addConnectingEdges(arg,name,blockedEdges); });
+  const blockedNames = [...blockedNodes];
+  for (let i=0; i<blockedNames.length; i++) for (let j=i+1; j<blockedNames.length; j++) addConnectingEdges(blockedNames[i],blockedNames[j],blockedEdges);
+  if (!flashEdges.size) flashNodes.forEach(name => collectAdjacentEdges(name,flashEdges));
+  if (!blockedEdges.size) blockedNodes.forEach(name => collectAdjacentEdges(name,blockedEdges));
+
+  let note = DEFAULT_GRAPH_NOTE;
+  if (context.command) {
+    const fallback = context.result && !context.result.success ? context.result.message : `${context.command} → no graph changes`;
+    note = formatActivityNote(context.command, logEntries, fallback);
+  }
+  return { flashNodes, blockedNodes, flashEdges, blockedEdges, note };
+}
+
+function applyGraphActivity(prevSnapshot, snapshot, context) {
+  if (!snapshot || !context || !context.command) return;
+  clearGraphTransients();
+  const activity = summarizeActivity(prevSnapshot, snapshot, context);
+
+  activity.flashNodes.forEach(name => graphState.nodeEls.get(name)?.classList.add('flash'));
+  activity.blockedNodes.forEach(name => graphState.nodeEls.get(name)?.classList.add('blocked'));
+  activity.flashEdges.forEach(key => graphState.edgeEls.get(key)?.classList.add('flash'));
+  activity.blockedEdges.forEach(key => graphState.edgeEls.get(key)?.classList.add('blocked'));
+  setGraphNote(activity.note, true);
+
+  const timer = setTimeout(() => {
+    graphState.nodeEls.forEach(el => el.classList.remove('flash','blocked'));
+    graphState.edgeEls.forEach(el => el.classList.remove('flash','blocked'));
+    restoreGraphNote();
+  }, 1500);
+  graphState.transientTimers.push(timer);
+}
+
+// ============================================================
+//  Main UI refresh
+// ============================================================
+function refreshUI(context = null) {
+  const state = (context && context.nextState) || wasmGetState();
+  const snapshot = (context && context.nextSnapshot) || getFeatureSnapshot();
+  const enabledSet = snapshot
+    ? snapshot.enabledSet
+    : parseEnabledSetFromStatus(runQueryCommand('status').message);
+
+  currentStateName = state;
+  if (snapshot) {
+    updateGraph(snapshot);
+    const prevSnapshot = context && context.prevSnapshot ? context.prevSnapshot : currentSnapshot;
+    // Cascade detection before updating currentSnapshot
+    if (context && context.command) applyCascadeEffect(prevSnapshot, snapshot);
+    currentSnapshot = snapshot;
+    if (context && context.command) {
+      applyGraphActivity(prevSnapshot, snapshot, { ...context, nextState:state, logDelta:context.logDelta||context.result?.log_delta||[] });
+    }
+    // Flash missing arm subsystems on failed arm
+    if (context && context.result && !context.result.success && (context.command||'').trim().toLowerCase().startsWith('arm')) {
+      flashMissingSubsystems(enabledSet);
+    }
+  } else {
+    setGraphNote('Graph unavailable: JSON export failed.', true);
+  }
+
+  // Header state pill
   const pill = document.getElementById('headerState');
   pill.textContent = state.toUpperCase();
   pill.className = 'state-pill state-' + state;
@@ -474,24 +1445,36 @@ function refreshUI() {
   // Prompt
   document.getElementById('consolePrompt').textContent = `[${state}] ❯`;
 
-  // Diagram
+  // State machine diagram
   ['Preflight','Armed','Flying','Landing','Emergency'].forEach(s => {
-    const node = document.getElementById('node-' + s);
-    if (node) node.className = 'state-node' + (s === state ? ' active-' + state : '');
+    const node = document.getElementById('node-'+s);
+    if (node) node.className = 'state-node' + (s===state ? ' active-'+state : '');
+  });
+
+  // SM guard labels and arrows
+  updateSmGuards(state, enabledSet);
+
+  // Arm checklist
+  updateArmChecklist(enabledSet);
+
+  // Quick-arm button
+  const armAllMissing = ARM_REQUIRED.filter(n => !enabledSet.has(n));
+  const qbtn = document.getElementById('btn-quick-arm');
+  if (qbtn) qbtn.disabled = armAllMissing.length === 0;
+
+  // Flight mode chips
+  FLIGHT_MODES.forEach(m => {
+    const chip = document.getElementById('chip-'+m);
+    if (chip) chip.className = 'mode-chip' + (enabledSet.has(m) ? ' active' : '');
   });
 
   // Left panel toggles
   ALL_SUBSYSTEMS.forEach(name => {
-    const item = document.getElementById('sub-' + name);
-    const tog = document.getElementById('tog-' + name);
+    const item = document.getElementById('sub-'+name);
+    const tog = document.getElementById('tog-'+name);
     if (!item || !tog) return;
-    if (enabledSet.has(name)) {
-      item.classList.add('enabled');
-      tog.classList.add('on');
-    } else {
-      item.classList.remove('enabled');
-      tog.classList.remove('on');
-    }
+    if (enabledSet.has(name)) { item.classList.add('enabled'); tog.classList.add('on'); }
+    else { item.classList.remove('enabled'); tog.classList.remove('on'); }
   });
 
   // Telemetry
@@ -505,19 +1488,19 @@ function refreshUI() {
   setTelem('tel-gps', enabledSet.has('GPS') ? 'ON' : 'OFF', enabledSet.has('GPS') ? 'ok' : '');
   setTelem('tel-bat', enabledSet.has('BatteryMonitor') ? 'ON' : 'OFF', enabledSet.has('BatteryMonitor') ? 'ok' : 'err');
   setTelem('tel-esc', enabledSet.has('ESC') ? 'ON' : 'OFF', enabledSet.has('ESC') ? 'ok' : 'err');
-  setTelem('tel-rc',  enabledSet.has('RCReceiver') ? 'ON' : 'OFF', enabledSet.has('RCReceiver') ? 'ok' : 'err');
+  setTelem('tel-rc', enabledSet.has('RCReceiver') ? 'ON' : 'OFF', enabledSet.has('RCReceiver') ? 'ok' : 'err');
 
   // Status dots
   document.getElementById('dot-arm').className = 'sdot ' + (['Armed','Flying','Landing'].includes(state) ? 'on' : 'off');
-  document.getElementById('dot-fly').className = 'sdot ' + (state === 'Flying' ? 'on' : 'off');
+  document.getElementById('dot-fly').className = 'sdot ' + (state==='Flying' ? 'on' : 'off');
 
-  // Buttons
-  setBtnEnabled('btn-arm',       state === 'Preflight');
-  setBtnEnabled('btn-disarm',    state === 'Armed');
-  setBtnEnabled('btn-takeoff',   state === 'Armed');
-  setBtnEnabled('btn-land',      state === 'Flying');
-  setBtnEnabled('btn-lc',        state === 'Landing');
-  setBtnEnabled('btn-reset',     state === 'Emergency');
+  // Action buttons
+  setBtnEnabled('btn-arm',       state==='Preflight');
+  setBtnEnabled('btn-disarm',    state==='Armed');
+  setBtnEnabled('btn-takeoff',   state==='Armed');
+  setBtnEnabled('btn-land',      state==='Flying');
+  setBtnEnabled('btn-lc',        state==='Landing');
+  setBtnEnabled('btn-reset',     state==='Emergency');
   setBtnEnabled('btn-emergency', !['Preflight','Emergency'].includes(state));
 }
 
@@ -540,18 +1523,15 @@ function boot() {
   appendLine('╚═══════════════════════════════════════╝', 'log-system');
   appendLine('CommandParser::execute() running real compiled C++.', 'log-info');
   appendLine('Fat-P FeatureManager, StateMachine, Signal, TelemetryLog active.', 'log-info');
-  appendLine('', 'log-info');
   appendLine('HINT: Arm requires: IMU, Barometer, BatteryMonitor, ESC, MotorMix, RCReceiver', 'log-warn');
-  appendLine('      Takeoff requires a flight mode (Manual, Stabilize, AltHold…)', 'log-warn');
+  appendLine('', 'log-info');
   refreshUI();
 }
 
-// Enter key
 document.getElementById('consoleInput').addEventListener('keydown', e => {
   if (e.key === 'Enter') submitCommand();
 });
 
-// Start
 initWasm().catch(err => {
   document.getElementById('loadingMsg').textContent = 'Error: ' + err.message;
   document.getElementById('loadingMsg').style.color = 'var(--danger)';
