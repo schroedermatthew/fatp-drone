@@ -8,7 +8,7 @@ Five relationship types. Transitive dependency resolution. Cycle detection with 
 
 This component was built by an AI pair-programmer. The FAT-P development guidelines — covering code standards, naming conventions, test structure, benchmark methodology, CI workflow, documentation style, and AI operational behavior — were transferred from the parent library and edited to fit this project. The AI works from those adapted guidelines and produces code and tests to that standard from the start, rather than having a human retrofit compliance afterward. FeatureManager is the result: 2,662 lines of production C++20, 44 passing tests, full JSON serialization, and a drone demo that exercises the complete feature graph under realistic safety constraints.
 
-[![CI](https://github.com/schroedermatthew/fatp-drone/actions/workflows/ci.yml/badge.svg)](https://github.com/schroedermatthew/fatp-drone/actions/workflows/ci.yml)
+[![CI](https://github.com/schroedermatthew/fatp-drone/actions/workflows/fatp-drone.yml/badge.svg?event=push)](https://github.com/schroedermatthew/fatp-drone/actions/workflows/fatp-drone.yml)
 
 ---
 
