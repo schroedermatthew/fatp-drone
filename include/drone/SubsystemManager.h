@@ -42,7 +42,7 @@ FATP_META:
  * - ESC        Requires  BatteryMonitor
  * - Failsafe   Requires  BatteryMonitor, RCReceiver
  * - FlightModes group: MutuallyExclusive (Manual, Stabilize, AltHold, PosHold, Autonomous, RTL)
- * - EmergencyStop Conflicts all flight modes
+ * - EmergencyStop Preempts all flight modes (force-disables active mode + latched inhibit)
  *
  * @see fat_p::feature::FeatureManager
  */
@@ -345,10 +345,13 @@ private:
         requireOk(mManager.addRelationship(kRTL,        FR::Requires, kBarometer), "RTL->Barometer");
         requireOk(mManager.addRelationship(kRTL,        FR::Requires, kGPS),       "RTL->GPS");
 
-        // EmergencyStop conflicts with all flight modes
+        // EmergencyStop preempts all flight modes.
+        // Preempts = authoritative shutdown: enabling EmergencyStop forcibly disables
+        // the active flight mode (and its reverse-dependency closure) and latches
+        // inhibit so no flight mode can re-enable while EmergencyStop is active.
         for (const char* mode : {kManual, kStabilize, kAltHold, kPosHold, kAutonomous, kRTL})
         {
-            requireOk(mManager.addRelationship(kEmergencyStop, FR::Conflicts, mode), "EmergencyStop conflicts mode");
+            requireOk(mManager.addRelationship(kEmergencyStop, FR::Preempts, mode), "EmergencyStop preempts mode");
         }
     }
 

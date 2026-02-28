@@ -175,15 +175,30 @@ FATP_TEST_CASE(two_flight_modes_cannot_coexist)
     return true;
 }
 
-FATP_TEST_CASE(emergency_stop_conflicts_with_flight_modes)
+FATP_TEST_CASE(emergency_stop_preempts_active_flight_mode)
 {
+    // EmergencyStop now Preempts all flight modes.
+    // Enabling EmergencyStop while a flight mode is active must:
+    //   1. Succeed (Preempts is an authoritative shutdown, not a conflict block).
+    //   2. Force-disable the active flight mode.
+    //   3. Latch inhibit: re-enabling the flight mode while EmergencyStop is on must fail.
     Fixture f;
 
-    (void)f.mgr.enableSubsystem(kManual);
-    FATP_ASSERT_TRUE(f.mgr.isEnabled(kManual), "Manual should be active");
+    // Pre-condition: Manual is active.
+    auto arm = f.mgr.enableSubsystem(kManual);
+    FATP_ASSERT_TRUE(arm.has_value(), "Manual must enable successfully as pre-condition");
+    FATP_ASSERT_TRUE(f.mgr.isEnabled(kManual), "Manual should be enabled before estop");
 
+    // EmergencyStop preempts: must succeed and Manual must be force-disabled.
     auto res = f.mgr.enableSubsystem(kEmergencyStop);
-    FATP_ASSERT_FALSE(res.has_value(), "EmergencyStop should fail while a flight mode is active");
+    FATP_ASSERT_TRUE(res.has_value(),                "EmergencyStop Preempts must succeed while Manual is active");
+    FATP_ASSERT_TRUE(f.mgr.isEnabled(kEmergencyStop), "EmergencyStop should be enabled");
+    FATP_ASSERT_FALSE(f.mgr.isEnabled(kManual),       "Manual should be force-disabled by Preempts cascade");
+
+    // Latched inhibit: flight mode cannot re-enable while EmergencyStop is on.
+    auto reEnable = f.mgr.enableSubsystem(kManual);
+    FATP_ASSERT_FALSE(reEnable.has_value(), "Manual must not re-enable while EmergencyStop (Preempts) is active");
+    FATP_ASSERT_FALSE(f.mgr.isEnabled(kManual), "Manual should remain disabled");
     return true;
 }
 
@@ -347,7 +362,7 @@ bool test_SubsystemManager()
     FATP_RUN_TEST_NS(runner, subsystemmanager, autonomous_requires_datalink);
     FATP_RUN_TEST_NS(runner, subsystemmanager, flight_modes_mutually_exclusive);
     FATP_RUN_TEST_NS(runner, subsystemmanager, two_flight_modes_cannot_coexist);
-    FATP_RUN_TEST_NS(runner, subsystemmanager, emergency_stop_conflicts_with_flight_modes);
+    FATP_RUN_TEST_NS(runner, subsystemmanager, emergency_stop_preempts_active_flight_mode);
     FATP_RUN_TEST_NS(runner, subsystemmanager, emergency_stop_when_no_flight_mode);
     FATP_RUN_TEST_NS(runner, subsystemmanager, disable_dependency_blocks_if_dependent_enabled);
     FATP_RUN_TEST_NS(runner, subsystemmanager, validate_arming_readiness_missing_subsystems);
