@@ -30,7 +30,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 #
 # For a local checkout, set this to whichever directory contains FeatureManager.h.
 if(NOT DEFINED FATP_INCLUDE_DIR)
-    set(FATP_INCLUDE_DIR "${CMAKE_SOURCE_DIR}/../fat-p-headers"
+    set(FATP_INCLUDE_DIR "${CMAKE_SOURCE_DIR}/../FatP/include/fat_p"
         CACHE PATH "Directory containing Fat-P .h files (flat layout, no subdirectory)")
 endif()
 
@@ -39,6 +39,12 @@ if(NOT EXISTS "${FATP_INCLUDE_DIR}/FeatureManager.h")
         "FATP_INCLUDE_DIR='${FATP_INCLUDE_DIR}' does not contain FeatureManager.h. "
         "Pass -DFATP_INCLUDE_DIR=<dir> pointing at the flat Fat-P header directory. "
         "In the Claude project environment use: -DFATP_INCLUDE_DIR=/mnt/project")
+endif()
+
+# ── Compiler flags ───────────────────────────────────────────────────────────
+
+if(MSVC)
+    add_compile_options(/Zc:preprocessor)
 endif()
 
 # ── Build options ─────────────────────────────────────────────────────────────
