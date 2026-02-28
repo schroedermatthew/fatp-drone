@@ -1,0 +1,530 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="1663pt" height="1438pt" viewBox="0.00 0.00 1663.00 1438.00">
+<g id="graph0" class="graph" transform="scale(1 1) rotate(0) translate(4 1433.8)">
+<title>FeatureGraph</title>
+<polygon fill="white" stroke="none" points="-4,4 -4,-1433.8 1659,-1433.8 1659,4 -4,4"/>
+<!-- Geofence -->
+<g id="node1" class="node">
+<title>Geofence</title>
+<polygon fill="gray" stroke="black" points="77.81,-36 8.18,-36 8.18,0 77.81,0 77.81,-36"/>
+<text xml:space="preserve" text-anchor="middle" x="43" y="-13.8" font-family="Times,serif" font-size="14.00">Geofence</text>
+</g>
+<!-- Lidar -->
+<g id="node2" class="node">
+<title>Lidar</title>
+<polygon fill="gray" stroke="black" points="70,-90 16,-90 16,-54 70,-54 70,-90"/>
+<text xml:space="preserve" text-anchor="middle" x="43" y="-67.8" font-family="Times,serif" font-size="14.00">Lidar</text>
+</g>
+<!-- MotorMix -->
+<g id="node3" class="node">
+<title>MotorMix</title>
+<polygon fill="gray" stroke="black" points="80.17,-144 5.83,-144 5.83,-108 80.17,-108 80.17,-144"/>
+<text xml:space="preserve" text-anchor="middle" x="43" y="-121.8" font-family="Times,serif" font-size="14.00">MotorMix</text>
+</g>
+<!-- ESC -->
+<g id="node22" class="node">
+<title>ESC</title>
+<polygon fill="gray" stroke="black" points="308.8,-144 254.8,-144 254.8,-108 308.8,-108 308.8,-144"/>
+<text xml:space="preserve" text-anchor="middle" x="281.8" y="-121.8" font-family="Times,serif" font-size="14.00">ESC</text>
+</g>
+<!-- MotorMix&#45;&gt;ESC -->
+<g id="edge1" class="edge">
+<title>MotorMix-&gt;ESC</title>
+<path fill="none" stroke="black" d="M80.48,-126C124.57,-126 198.38,-126 243.04,-126"/>
+<polygon fill="black" stroke="black" points="243.03,-129.5 253.03,-126 243.03,-122.5 243.03,-129.5"/>
+<text xml:space="preserve" text-anchor="middle" x="157.26" y="-130.2" font-family="Times,serif" font-size="14.00">Requires</text>
+</g>
+<!-- Stabilize -->
+<g id="node4" class="node">
+<title>Stabilize</title>
+<polygon fill="gray" stroke="black" points="75.49,-819 10.5,-819 10.5,-783 75.49,-783 75.49,-819"/>
+<text xml:space="preserve" text-anchor="middle" x="43" y="-796.8" font-family="Times,serif" font-size="14.00">Stabilize</text>
+</g>
+<!-- Barometer -->
+<g id="node5" class="node">
+<title>Barometer</title>
+<polygon fill="gray" stroke="black" points="1655,-1248 1579.92,-1248 1579.92,-1212 1655,-1212 1655,-1248"/>
+<text xml:space="preserve" text-anchor="middle" x="1617.46" y="-1225.8" font-family="Times,serif" font-size="14.00">Barometer</text>
+</g>
+<!-- Stabilize&#45;&gt;Barometer -->
+<g id="edge2" class="edge">
+<title>Stabilize-&gt;Barometer</title>
+<path fill="none" stroke="black" d="M75.64,-816.29C79.75,-819.59 83.42,-823.48 85.99,-828 115.47,-879.91 66.94,-1318.19 103.99,-1365 154.53,-1428.84 199.38,-1413 280.8,-1413 280.8,-1413 280.8,-1413 1468.15,-1413 1546.47,-1413 1590.61,-1310.58 1607.88,-1258.98"/>
+<polygon fill="black" stroke="black" points="1611.15,-1260.25 1610.88,-1249.66 1604.48,-1258.11 1611.15,-1260.25"/>
+<text xml:space="preserve" text-anchor="middle" x="925.94" y="-1417.2" font-family="Times,serif" font-size="14.00">Requires</text>
+</g>
+<!-- Autonomous -->
+<g id="node6" class="node">
+<title>Autonomous</title>
+<polygon fill="gray" stroke="black" points="325.97,-819 237.63,-819 237.63,-783 325.97,-783 325.97,-819"/>
+<text xml:space="preserve" text-anchor="middle" x="281.8" y="-796.8" font-family="Times,serif" font-size="14.00">Autonomous</text>
+</g>
+<!-- Stabilize&#45;&gt;Autonomous -->
+<g id="edge6" class="edge">
+<title>Stabilize-&gt;Autonomous</title>
+<path fill="none" stroke="black" stroke-dasharray="1,5" d="M75.95,-789.02C84.9,-786.21 94.71,-783.62 103.99,-782.2 150.8,-775.04 163.58,-776.03 210.53,-782.2 219.3,-783.35 228.52,-785.28 237.3,-787.47"/>
+<text xml:space="preserve" text-anchor="middle" x="157.26" y="-786.4" font-family="Times,serif" font-size="14.00">MutuallyExclusive</text>
+</g>
+<!-- PosHold -->
+<g id="node8" class="node">
+<title>PosHold</title>
+<polygon fill="gray" stroke="black" points="573.72,-694 509.48,-694 509.48,-658 573.72,-658 573.72,-694"/>
+<text xml:space="preserve" text-anchor="middle" x="541.6" y="-671.8" font-family="Times,serif" font-size="14.00">PosHold</text>
+</g>
+<!-- Stabilize&#45;&gt;PosHold -->
+<g id="edge8" class="edge">
+<title>Stabilize-&gt;PosHold</title>
+<path fill="none" stroke="black" stroke-dasharray="1,5" d="M70.96,-782.64C122.8,-748.57 241.17,-676.72 353.07,-651 399.22,-640.39 412.79,-643.94 459.61,-651 476.34,-653.52 494.39,-658.83 509.19,-663.9"/>
+<text xml:space="preserve" text-anchor="middle" x="281.8" y="-698.36" font-family="Times,serif" font-size="14.00">MutuallyExclusive</text>
+</g>
+<!-- RTL -->
+<g id="node10" class="node">
+<title>RTL</title>
+<polygon fill="gray" stroke="black" points="1494.15,-727 1440.15,-727 1440.15,-691 1494.15,-691 1494.15,-727"/>
+<text xml:space="preserve" text-anchor="middle" x="1467.15" y="-704.8" font-family="Times,serif" font-size="14.00">RTL</text>
+</g>
+<!-- Stabilize&#45;&gt;RTL -->
+<g id="edge9" class="edge">
+<title>Stabilize-&gt;RTL</title>
+<path fill="none" stroke="black" stroke-dasharray="1,5" d="M75.63,-816.3C79.75,-819.6 83.42,-823.48 85.99,-828 113.56,-876.4 68.33,-1286.21 103.99,-1329 155.51,-1390.82 200.33,-1368 280.8,-1368 280.8,-1368 280.8,-1368 1300.55,-1368 1357.31,-1368 1387.1,-1373.64 1422.15,-1329 1460.22,-1280.52 1465.39,-824.63 1466.06,-727.25"/>
+<text xml:space="preserve" text-anchor="middle" x="801.4" y="-1372.2" font-family="Times,serif" font-size="14.00">MutuallyExclusive</text>
+</g>
+<!-- IMU -->
+<g id="node12" class="node">
+<title>IMU</title>
+<polygon fill="gray" stroke="black" points="1644.46,-423 1590.46,-423 1590.46,-387 1644.46,-387 1644.46,-423"/>
+<text xml:space="preserve" text-anchor="middle" x="1617.46" y="-400.8" font-family="Times,serif" font-size="14.00">IMU</text>
+</g>
+<!-- Stabilize&#45;&gt;IMU -->
+<g id="edge3" class="edge">
+<title>Stabilize-&gt;IMU</title>
+<path fill="none" stroke="black" d="M45.14,-782.73C49.52,-717.26 66.86,-495.15 103.99,-436 305.99,-114.26 545.05,-198 924.94,-198 924.94,-198 924.94,-198 1468.15,-198 1511.55,-198 1575.62,-319.77 1603.12,-376.52"/>
+<polygon fill="black" stroke="black" points="1599.84,-377.76 1607.32,-385.27 1606.15,-374.73 1599.84,-377.76"/>
+<text xml:space="preserve" text-anchor="middle" x="925.94" y="-202.2" font-family="Times,serif" font-size="14.00">Requires</text>
+</g>
+<!-- EmergencyStop -->
+<g id="node18" class="node">
+<title>EmergencyStop</title>
+<polygon fill="gray" stroke="black" points="1352.26,-816 1246.84,-816 1246.84,-780 1352.26,-780 1352.26,-816"/>
+<text xml:space="preserve" text-anchor="middle" x="1299.55" y="-793.8" font-family="Times,serif" font-size="14.00">EmergencyStop</text>
+</g>
+<!-- Stabilize&#45;&gt;EmergencyStop -->
+<g id="edge4" class="edge">
+<title>Stabilize-&gt;EmergencyStop</title>
+<path fill="none" stroke="black" stroke-dasharray="1,5" d="M75.94,-816.69C79.91,-819.9 83.45,-823.66 85.99,-828 119.52,-885.25 58.88,-1077.36 103.99,-1126 211.71,-1242.15 301.29,-1155.42 459.61,-1150 524.6,-1147.78 540.85,-1146.11 605.59,-1140 675.54,-1133.4 1176.05,-1076.99 1228.28,-1030 1260.82,-1000.73 1286.88,-865.87 1295.5,-816.32"/>
+<text xml:space="preserve" text-anchor="middle" x="676.86" y="-1142.23" font-family="Times,serif" font-size="14.00">Conflicts</text>
+</g>
+<!-- Manual -->
+<g id="node19" class="node">
+<title>Manual</title>
+<polygon fill="gray" stroke="black" points="1079.86,-754 1021.09,-754 1021.09,-718 1079.86,-718 1079.86,-754"/>
+<text xml:space="preserve" text-anchor="middle" x="1050.48" y="-731.8" font-family="Times,serif" font-size="14.00">Manual</text>
+</g>
+<!-- Stabilize&#45;&gt;Manual -->
+<g id="edge7" class="edge">
+<title>Stabilize-&gt;Manual</title>
+<path fill="none" stroke="black" stroke-dasharray="1,5" d="M45.03,-782.62C48.65,-725.41 62.88,-552.21 103.99,-518 178.77,-455.77 907.85,-474.88 979.21,-541 1015.22,-574.37 980.15,-603.96 997.21,-650 1006.5,-675.07 1023.35,-700.89 1035.41,-717.61"/>
+<text xml:space="preserve" text-anchor="middle" x="541.6" y="-487.48" font-family="Times,serif" font-size="14.00">MutuallyExclusive</text>
+</g>
+<!-- AltHold -->
+<g id="node20" class="node">
+<title>AltHold</title>
+<polygon fill="gray" stroke="black" points="832.35,-1024 770.46,-1024 770.46,-988 832.35,-988 832.35,-1024"/>
+<text xml:space="preserve" text-anchor="middle" x="801.4" y="-1001.8" font-family="Times,serif" font-size="14.00">AltHold</text>
+</g>
+<!-- Stabilize&#45;&gt;AltHold -->
+<g id="edge5" class="edge">
+<title>Stabilize-&gt;AltHold</title>
+<path fill="none" stroke="black" stroke-dasharray="1,5" d="M75.92,-816.7C79.89,-819.92 83.44,-823.67 85.99,-828 116.76,-880.18 60.1,-1058.25 103.99,-1100 154.4,-1147.95 668.2,-1133.7 730.13,-1102 762.12,-1085.62 783.09,-1047.16 793.24,-1024.2"/>
+<text xml:space="preserve" text-anchor="middle" x="406.34" y="-1135.24" font-family="Times,serif" font-size="14.00">MutuallyExclusive</text>
+</g>
+<!-- Autonomous&#45;&gt;Stabilize -->
+<g id="edge21" class="edge">
+<title>Autonomous-&gt;Stabilize</title>
+<path fill="none" stroke="black" stroke-dasharray="1,5" d="M237.34,-801C190.66,-801 117.59,-801 75.93,-801"/>
+<text xml:space="preserve" text-anchor="middle" x="157.26" y="-805.2" font-family="Times,serif" font-size="14.00">MutuallyExclusive</text>
+</g>
+<!-- Autonomous&#45;&gt;Barometer -->
+<g id="edge10" class="edge">
+<title>Autonomous-&gt;Barometer</title>
+<path fill="none" stroke="black" d="M283.73,-819.31C287.43,-884.83 303.47,-1106.09 353.07,-1152 516.98,-1303.74 1129.51,-1260.8 1352.82,-1256 1445.82,-1254 1470.28,-1262.97 1561.92,-1247 1564.08,-1246.62 1566.28,-1246.18 1568.48,-1245.7"/>
+<polygon fill="black" stroke="black" points="1569.2,-1249.13 1578.05,-1243.29 1567.5,-1242.34 1569.2,-1249.13"/>
+<text xml:space="preserve" text-anchor="middle" x="1050.48" y="-1269.35" font-family="Times,serif" font-size="14.00">Requires</text>
+</g>
+<!-- Autonomous&#45;&gt;PosHold -->
+<g id="edge19" class="edge">
+<title>Autonomous-&gt;PosHold</title>
+<path fill="none" stroke="black" stroke-dasharray="1,5" d="M292.3,-782.85C303.84,-762.69 325.28,-730.81 353.07,-714.2 394.43,-689.47 412.4,-703.72 459.61,-694 475.97,-690.63 494.14,-686.62 509.11,-683.24"/>
+<text xml:space="preserve" text-anchor="middle" x="406.34" y="-718.4" font-family="Times,serif" font-size="14.00">MutuallyExclusive</text>
+</g>
+<!-- Autonomous&#45;&gt;RTL -->
+<g id="edge20" class="edge">
+<title>Autonomous-&gt;RTL</title>
+<path fill="none" stroke="black" stroke-dasharray="1,5" d="M295.82,-782.6C307.34,-765.67 324.01,-739.53 335.07,-715 346.16,-690.39 333.04,-675.09 353.07,-657 395.56,-618.63 567.8,-649 605.59,-606 643.09,-563.33 583.36,-391.11 623.59,-351 671.18,-303.56 1169.35,-310.72 1228.28,-343 1371.85,-421.63 1442.49,-628.13 1461.06,-690.75"/>
+<text xml:space="preserve" text-anchor="middle" x="925.94" y="-321.79" font-family="Times,serif" font-size="14.00">MutuallyExclusive</text>
+</g>
+<!-- Autonomous&#45;&gt;IMU -->
+<g id="edge14" class="edge">
+<title>Autonomous-&gt;IMU</title>
+<path fill="none" stroke="black" d="M296.87,-782.61C308.94,-765.89 325.8,-740.07 335.07,-715 352.25,-668.54 337.46,-652.01 353.07,-605 410.06,-433.41 359.8,-244 540.6,-244 540.6,-244 540.6,-244 926.94,-244 1117.05,-244 1170.69,-229.48 1352.82,-284 1437.73,-309.41 1530.48,-357.07 1580.18,-384.37"/>
+<polygon fill="black" stroke="black" points="1578.34,-387.36 1588.78,-389.14 1581.73,-381.24 1578.34,-387.36"/>
+<text xml:space="preserve" text-anchor="middle" x="1050.48" y="-247.58" font-family="Times,serif" font-size="14.00">Requires</text>
+</g>
+<!-- Datalink -->
+<g id="node15" class="node">
+<title>Datalink</title>
+<polygon fill="gray" stroke="black" points="573.7,-748 509.5,-748 509.5,-712 573.7,-712 573.7,-748"/>
+<text xml:space="preserve" text-anchor="middle" x="541.6" y="-725.8" font-family="Times,serif" font-size="14.00">Datalink</text>
+</g>
+<!-- Autonomous&#45;&gt;Datalink -->
+<g id="edge12" class="edge">
+<title>Autonomous-&gt;Datalink</title>
+<path fill="none" stroke="black" d="M306.87,-782.51C319.87,-773.46 336.6,-763.23 353.07,-757.2 400.67,-739.79 458.89,-733.48 497.72,-731.22"/>
+<polygon fill="black" stroke="black" points="497.79,-734.72 507.6,-730.72 497.43,-727.73 497.79,-734.72"/>
+<text xml:space="preserve" text-anchor="middle" x="406.34" y="-761.4" font-family="Times,serif" font-size="14.00">Requires</text>
+</g>
+<!-- GPS -->
+<g id="node17" class="node">
+<title>GPS</title>
+<polygon fill="gray" stroke="black" points="1644.46,-320 1590.46,-320 1590.46,-284 1644.46,-284 1644.46,-320"/>
+<text xml:space="preserve" text-anchor="middle" x="1617.46" y="-297.8" font-family="Times,serif" font-size="14.00">GPS</text>
+</g>
+<!-- Autonomous&#45;&gt;GPS -->
+<g id="edge13" class="edge">
+<title>Autonomous-&gt;GPS</title>
+<path fill="none" stroke="black" d="M297.87,-782.54C310.41,-765.98 327.4,-740.43 335.07,-715 349.64,-666.67 320.2,-299.32 353.07,-261 472.87,-121.33 990.01,-153 1174.02,-153 1174.02,-153 1174.02,-153 1468.15,-153 1512.05,-153 1529.17,-154.78 1561.92,-184 1588.18,-207.43 1602.68,-246.09 1610.01,-272.74"/>
+<polygon fill="black" stroke="black" points="1606.57,-273.41 1612.43,-282.23 1613.35,-271.67 1606.57,-273.41"/>
+<text xml:space="preserve" text-anchor="middle" x="1050.48" y="-156.28" font-family="Times,serif" font-size="14.00">Requires</text>
+</g>
+<!-- Autonomous&#45;&gt;EmergencyStop -->
+<g id="edge15" class="edge">
+<title>Autonomous-&gt;EmergencyStop</title>
+<path fill="none" stroke="black" stroke-dasharray="1,5" d="M297.95,-819.4C311.06,-834.14 331.29,-854.23 353.07,-866 454.83,-921 496.21,-891.37 605.59,-929 613.87,-931.85 615.03,-935.18 623.59,-937 669.91,-946.83 682.92,-940.58 730.13,-937 785.96,-932.77 807.18,-947.66 854.67,-918 866.59,-910.55 860.47,-898.97 872.67,-892 941.47,-852.69 1155.97,-898.38 1228.28,-866 1252.3,-855.25 1272.99,-832.59 1285.59,-816.38"/>
+<text xml:space="preserve" text-anchor="middle" x="801.4" y="-941.3" font-family="Times,serif" font-size="14.00">Conflicts</text>
+</g>
+<!-- Autonomous&#45;&gt;Manual -->
+<g id="edge18" class="edge">
+<title>Autonomous-&gt;Manual</title>
+<path fill="none" stroke="black" stroke-dasharray="1,5" d="M326.38,-801.19C435.22,-801.77 711.56,-803.96 730.13,-811.2 740.05,-815.07 738.17,-823.25 748.13,-827 792.44,-843.69 813.8,-850.9 854.67,-827 868.76,-818.76 859.76,-804.98 872.67,-795 911.42,-765.07 932.99,-783.15 979.21,-767 993.18,-762.12 1008.25,-755.64 1020.83,-749.87"/>
+<text xml:space="preserve" text-anchor="middle" x="676.86" y="-815.4" font-family="Times,serif" font-size="14.00">MutuallyExclusive</text>
+</g>
+<!-- Autonomous&#45;&gt;AltHold -->
+<g id="edge17" class="edge">
+<title>Autonomous-&gt;AltHold</title>
+<path fill="none" stroke="black" stroke-dasharray="1,5" d="M289.91,-819.21C300.14,-842.8 321.31,-883.35 353.07,-904 448.72,-966.2 499.66,-907.81 605.59,-950.2 614.47,-953.75 614.83,-958.17 623.59,-962 637,-967.86 723.36,-988.23 770.24,-999.08"/>
+<text xml:space="preserve" text-anchor="middle" x="541.6" y="-954.4" font-family="Times,serif" font-size="14.00">MutuallyExclusive</text>
+</g>
+<!-- CollisionAvoidance -->
+<g id="node21" class="node">
+<title>CollisionAvoidance</title>
+<polygon fill="gray" stroke="black" points="605.59,-1060 477.61,-1060 477.61,-1024 605.59,-1024 605.59,-1060"/>
+<text xml:space="preserve" text-anchor="middle" x="541.6" y="-1037.8" font-family="Times,serif" font-size="14.00">CollisionAvoidance</text>
+</g>
+<!-- Autonomous&#45;&gt;CollisionAvoidance -->
+<g id="edge11" class="edge">
+<title>Autonomous-&gt;CollisionAvoidance</title>
+<path fill="none" stroke="black" d="M282.35,-819.37C282.4,-862.85 289.19,-972.27 353.07,-1024 370.2,-1037.87 421.26,-1042.12 465.79,-1043.04"/>
+<polygon fill="black" stroke="black" points="465.68,-1046.54 475.73,-1043.19 465.78,-1039.54 465.68,-1046.54"/>
+<text xml:space="preserve" text-anchor="middle" x="406.34" y="-1047.08" font-family="Times,serif" font-size="14.00">Requires</text>
+</g>
+<!-- Autonomous&#45;&gt;CollisionAvoidance -->
+<g id="edge16" class="edge">
+<title>Autonomous-&gt;CollisionAvoidance</title>
+<path fill="none" stroke="black" stroke-dasharray="5,2" d="M284.1,-819.44C287.79,-856.8 301.68,-941.48 353.07,-984 390.14,-1014.67 413.82,-988.41 459.61,-1003.2 466.96,-1005.58 480.76,-1011.93 494.92,-1018.82"/>
+<polygon fill="black" stroke="black" points="503.6,-1023.1 492.65,-1022.72 500.21,-1021.43 494.63,-1018.68 494.63,-1018.68 494.63,-1018.68 500.21,-1021.43 496.62,-1014.65 503.6,-1023.1"/>
+<text xml:space="preserve" text-anchor="middle" x="406.34" y="-1007.4" font-family="Times,serif" font-size="14.00">Implies</text>
+</g>
+<!-- Compass -->
+<g id="node7" class="node">
+<title>Compass</title>
+<polygon fill="gray" stroke="black" points="76.67,-873 9.33,-873 9.33,-837 76.67,-837 76.67,-873"/>
+<text xml:space="preserve" text-anchor="middle" x="43" y="-850.8" font-family="Times,serif" font-size="14.00">Compass</text>
+</g>
+<!-- PosHold&#45;&gt;Stabilize -->
+<g id="edge30" class="edge">
+<title>PosHold-&gt;Stabilize</title>
+<path fill="none" stroke="black" stroke-dasharray="1,5" d="M509.26,-658.72C494.62,-651.54 476.69,-643.97 459.61,-640 359.55,-616.74 328.24,-610.48 228.53,-635.2 167.77,-650.26 149.44,-657.95 103.99,-701 79,-724.67 60.75,-761 51.3,-782.74"/>
+<text xml:space="preserve" text-anchor="middle" x="281.8" y="-639.4" font-family="Times,serif" font-size="14.00">MutuallyExclusive</text>
+</g>
+<!-- PosHold&#45;&gt;Barometer -->
+<g id="edge22" class="edge">
+<title>PosHold-&gt;Barometer</title>
+<path fill="none" stroke="black" d="M574.12,-682.02C585.96,-685.95 598.31,-692.41 605.59,-703 634.34,-744.77 588.32,-1122.58 623.59,-1159 627.76,-1163.3 1369.48,-1213.41 1568.04,-1226.75"/>
+<polygon fill="black" stroke="black" points="1567.8,-1230.24 1578.01,-1227.42 1568.27,-1223.26 1567.8,-1230.24"/>
+<text xml:space="preserve" text-anchor="middle" x="1175.02" y="-1207.82" font-family="Times,serif" font-size="14.00">Requires</text>
+</g>
+<!-- PosHold&#45;&gt;Autonomous -->
+<g id="edge27" class="edge">
+<title>PosHold-&gt;Autonomous</title>
+<path fill="none" stroke="black" stroke-dasharray="1,5" d="M509.19,-666.18C469.76,-655.82 401.42,-644.61 353.07,-673.2 312.53,-697.17 293.81,-753.77 286.6,-782.94"/>
+<text xml:space="preserve" text-anchor="middle" x="406.34" y="-677.4" font-family="Times,serif" font-size="14.00">MutuallyExclusive</text>
+</g>
+<!-- PosHold&#45;&gt;RTL -->
+<g id="edge29" class="edge">
+<title>PosHold-&gt;RTL</title>
+<path fill="none" stroke="black" stroke-dasharray="1,5" d="M574.11,-660.25C588.78,-653.69 606.69,-646.74 623.59,-643 677.7,-631.04 692.76,-639.2 748.13,-637 906.1,-630.72 945.9,-620.42 1103.75,-629.2 1214.96,-635.39 1242.66,-640.55 1352.82,-657 1383.83,-661.63 1394,-656.21 1422.15,-670 1432.42,-675.03 1442.13,-683.12 1449.8,-690.63"/>
+<text xml:space="preserve" text-anchor="middle" x="1050.48" y="-633.4" font-family="Times,serif" font-size="14.00">MutuallyExclusive</text>
+</g>
+<!-- PosHold&#45;&gt;IMU -->
+<g id="edge24" class="edge">
+<title>PosHold-&gt;IMU</title>
+<path fill="none" stroke="black" d="M574.18,-662.38C586.04,-655.61 598.38,-646.23 605.59,-634 629.96,-592.71 588.54,-451.71 623.59,-419 694.41,-352.94 1405.97,-392.07 1578.79,-402.62"/>
+<polygon fill="black" stroke="black" points="1578.35,-406.1 1588.55,-403.22 1578.78,-399.11 1578.35,-406.1"/>
+<text xml:space="preserve" text-anchor="middle" x="1175.02" y="-390.12" font-family="Times,serif" font-size="14.00">Requires</text>
+</g>
+<!-- PosHold&#45;&gt;GPS -->
+<g id="edge23" class="edge">
+<title>PosHold-&gt;GPS</title>
+<path fill="none" stroke="black" d="M573.92,-662.6C585.89,-655.83 598.38,-646.38 605.59,-634 633.31,-586.45 585.68,-426.9 623.59,-387 678.14,-329.6 721.21,-365 800.4,-365 800.4,-365 800.4,-365 1176.02,-362.2 1326.87,-362.2 1504.13,-327.1 1579.53,-310.51"/>
+<polygon fill="black" stroke="black" points="1579.84,-314.02 1588.84,-308.43 1578.32,-307.19 1579.84,-314.02"/>
+<text xml:space="preserve" text-anchor="middle" x="1175.02" y="-369.2" font-family="Times,serif" font-size="14.00">Requires</text>
+</g>
+<!-- PosHold&#45;&gt;EmergencyStop -->
+<g id="edge25" class="edge">
+<title>PosHold-&gt;EmergencyStop</title>
+<path fill="none" stroke="black" stroke-dasharray="1,5" d="M574.16,-689.1C584.26,-693.4 595.45,-698.29 605.59,-703 613.71,-706.76 615.16,-709.03 623.59,-712 732.52,-750.36 1017.61,-791.55 1121.75,-800 1163.66,-803.4 1211.35,-802.59 1246.63,-801.1"/>
+<text xml:space="preserve" text-anchor="middle" x="925.94" y="-786.96" font-family="Times,serif" font-size="14.00">Conflicts</text>
+</g>
+<!-- PosHold&#45;&gt;Manual -->
+<g id="edge28" class="edge">
+<title>PosHold-&gt;Manual</title>
+<path fill="none" stroke="black" stroke-dasharray="1,5" d="M574.05,-682.41C589.01,-685.31 607.18,-688.62 623.59,-691 772.41,-712.61 951.9,-728.16 1020.72,-733.74"/>
+<text xml:space="preserve" text-anchor="middle" x="801.4" y="-722.24" font-family="Times,serif" font-size="14.00">MutuallyExclusive</text>
+</g>
+<!-- PosHold&#45;&gt;AltHold -->
+<g id="edge26" class="edge">
+<title>PosHold-&gt;AltHold</title>
+<path fill="none" stroke="black" stroke-dasharray="1,5" d="M574.09,-682.38C585.79,-686.36 598.03,-692.76 605.59,-703 650.46,-763.77 584.92,-807.11 623.59,-872 653.01,-921.35 689.72,-904.36 730.13,-945.2 740.22,-955.4 737.91,-961.93 748.13,-972 754.61,-978.38 762.46,-984.24 770.09,-989.22"/>
+<text xml:space="preserve" text-anchor="middle" x="676.86" y="-949.4" font-family="Times,serif" font-size="14.00">MutuallyExclusive</text>
+</g>
+<!-- RCReceiver -->
+<g id="node9" class="node">
+<title>RCReceiver</title>
+<polygon fill="gray" stroke="black" points="583.81,-64 499.39,-64 499.39,-28 583.81,-28 583.81,-64"/>
+<text xml:space="preserve" text-anchor="middle" x="541.6" y="-41.8" font-family="Times,serif" font-size="14.00">RCReceiver</text>
+</g>
+<!-- RTL&#45;&gt;Stabilize -->
+<g id="edge39" class="edge">
+<title>RTL-&gt;Stabilize</title>
+<path fill="none" stroke="black" stroke-dasharray="1,5" d="M1465.2,-727.47C1459.48,-829.03 1425.57,-1315 1300.55,-1315 280.8,-1315 280.8,-1315 280.8,-1315 179.17,-1315 149.86,-1260.69 103.99,-1170 69.64,-1102.09 124.2,-893.82 85.99,-828 83.47,-823.65 79.93,-819.89 75.97,-816.67"/>
+<text xml:space="preserve" text-anchor="middle" x="801.4" y="-1319.2" font-family="Times,serif" font-size="14.00">MutuallyExclusive</text>
+</g>
+<!-- RTL&#45;&gt;Barometer -->
+<g id="edge31" class="edge">
+<title>RTL-&gt;Barometer</title>
+<path fill="none" stroke="black" d="M1473.34,-727.24C1495.34,-804.52 1580.99,-1105.4 1608.15,-1200.81"/>
+<polygon fill="black" stroke="black" points="1604.72,-1201.53 1610.82,-1210.19 1611.45,-1199.61 1604.72,-1201.53"/>
+<text xml:space="preserve" text-anchor="middle" x="1537.04" y="-1035.69" font-family="Times,serif" font-size="14.00">Requires</text>
+</g>
+<!-- RTL&#45;&gt;Autonomous -->
+<g id="edge36" class="edge">
+<title>RTL-&gt;Autonomous</title>
+<path fill="none" stroke="black" stroke-dasharray="1,5" d="M1466.9,-690.55C1468.22,-630 1463.35,-436.24 1352.82,-350 1183.52,-217.91 1087.14,-285.55 872.67,-296.2 761.56,-301.72 701.1,-241.19 623.59,-321 583.71,-362.07 643.13,-534.77 605.59,-578 586.78,-599.67 373.39,-611.74 353.07,-632 326.34,-658.65 349.06,-679.94 335.07,-715 325.09,-739.99 308.2,-766.03 296.33,-782.82"/>
+<text xml:space="preserve" text-anchor="middle" x="925.94" y="-300.4" font-family="Times,serif" font-size="14.00">MutuallyExclusive</text>
+</g>
+<!-- RTL&#45;&gt;PosHold -->
+<g id="edge38" class="edge">
+<title>RTL-&gt;PosHold</title>
+<path fill="none" stroke="black" stroke-dasharray="1,5" d="M1455.11,-690.73C1447.22,-679.06 1435.64,-664.41 1422.15,-655 1419.87,-653.41 1077.79,-453.04 872.67,-503 751.55,-532.5 730.97,-568.66 623.59,-632 615.31,-636.88 613.89,-639.15 605.59,-644 595.53,-649.88 584.26,-655.8 574.07,-660.93"/>
+<text xml:space="preserve" text-anchor="middle" x="1050.48" y="-523.26" font-family="Times,serif" font-size="14.00">MutuallyExclusive</text>
+</g>
+<!-- RTL&#45;&gt;IMU -->
+<g id="edge33" class="edge">
+<title>RTL-&gt;IMU</title>
+<path fill="none" stroke="black" d="M1476.99,-690.89C1501.81,-640.01 1572.35,-495.41 1602.51,-433.6"/>
+<polygon fill="black" stroke="black" points="1605.58,-435.28 1606.82,-424.76 1599.29,-432.21 1605.58,-435.28"/>
+<text xml:space="preserve" text-anchor="middle" x="1537.04" y="-614.87" font-family="Times,serif" font-size="14.00">Requires</text>
+</g>
+<!-- RTL&#45;&gt;GPS -->
+<g id="edge32" class="edge">
+<title>RTL-&gt;GPS</title>
+<path fill="none" stroke="black" d="M1470.28,-690.66C1474.95,-653.73 1487.65,-568.16 1512.15,-500.2 1535.18,-436.34 1575.31,-367.4 1598.51,-330.01"/>
+<polygon fill="black" stroke="black" points="1601.43,-331.95 1603.77,-321.61 1595.49,-328.23 1601.43,-331.95"/>
+<text xml:space="preserve" text-anchor="middle" x="1537.04" y="-504.4" font-family="Times,serif" font-size="14.00">Requires</text>
+</g>
+<!-- RTL&#45;&gt;EmergencyStop -->
+<g id="edge34" class="edge">
+<title>RTL-&gt;EmergencyStop</title>
+<path fill="none" stroke="black" stroke-dasharray="1,5" d="M1439.92,-720.89C1420.58,-729.85 1393.75,-742.7 1370.82,-755.2 1356.9,-762.79 1341.84,-771.84 1329.25,-779.67"/>
+<text xml:space="preserve" text-anchor="middle" x="1396.49" y="-759.4" font-family="Times,serif" font-size="14.00">Conflicts</text>
+</g>
+<!-- RTL&#45;&gt;Manual -->
+<g id="edge37" class="edge">
+<title>RTL-&gt;Manual</title>
+<path fill="none" stroke="black" stroke-dasharray="1,5" d="M1439.78,-697.19C1417.21,-687.76 1383.59,-675.32 1352.82,-670.2 1250.93,-653.24 1218.33,-658.38 1121.75,-695 1106.56,-700.76 1090.84,-709.62 1078.12,-717.63"/>
+<text xml:space="preserve" text-anchor="middle" x="1299.55" y="-674.4" font-family="Times,serif" font-size="14.00">MutuallyExclusive</text>
+</g>
+<!-- RTL&#45;&gt;AltHold -->
+<g id="edge35" class="edge">
+<title>RTL-&gt;AltHold</title>
+<path fill="none" stroke="black" stroke-dasharray="1,5" d="M1461.36,-727.3C1454.99,-749.23 1442.15,-786.34 1422.15,-813 1355.45,-901.92 1325.78,-917.62 1228.28,-971 1096.19,-1043.32 905.79,-1022.95 832.62,-1011.42"/>
+<text xml:space="preserve" text-anchor="middle" x="1175.02" y="-1012.91" font-family="Times,serif" font-size="14.00">MutuallyExclusive</text>
+</g>
+<!-- OpticalFlow -->
+<g id="node11" class="node">
+<title>OpticalFlow</title>
+<polygon fill="gray" stroke="black" points="85.99,-927 0,-927 0,-891 85.99,-891 85.99,-927"/>
+<text xml:space="preserve" text-anchor="middle" x="43" y="-904.8" font-family="Times,serif" font-size="14.00">OpticalFlow</text>
+</g>
+<!-- BatteryMonitor -->
+<g id="node13" class="node">
+<title>BatteryMonitor</title>
+<polygon fill="gray" stroke="black" points="593.15,-131 490.05,-131 490.05,-95 593.15,-95 593.15,-131"/>
+<text xml:space="preserve" text-anchor="middle" x="541.6" y="-108.8" font-family="Times,serif" font-size="14.00">BatteryMonitor</text>
+</g>
+<!-- Telemetry -->
+<g id="node14" class="node">
+<title>Telemetry</title>
+<polygon fill="gray" stroke="black" points="79.76,-981 6.23,-981 6.23,-945 79.76,-945 79.76,-981"/>
+<text xml:space="preserve" text-anchor="middle" x="43" y="-958.8" font-family="Times,serif" font-size="14.00">Telemetry</text>
+</g>
+<!-- Failsafe -->
+<g id="node16" class="node">
+<title>Failsafe</title>
+<polygon fill="gray" stroke="black" points="311.96,-77 251.64,-77 251.64,-41 311.96,-41 311.96,-77"/>
+<text xml:space="preserve" text-anchor="middle" x="281.8" y="-54.8" font-family="Times,serif" font-size="14.00">Failsafe</text>
+</g>
+<!-- Failsafe&#45;&gt;RCReceiver -->
+<g id="edge41" class="edge">
+<title>Failsafe-&gt;RCReceiver</title>
+<path fill="none" stroke="black" d="M312.41,-52.95C324.9,-50.68 339.64,-48.36 353.07,-47.2 398.49,-43.27 450.32,-43.28 487.97,-44.09"/>
+<polygon fill="black" stroke="black" points="487.58,-47.59 497.66,-44.33 487.75,-40.59 487.58,-47.59"/>
+<text xml:space="preserve" text-anchor="middle" x="406.34" y="-51.4" font-family="Times,serif" font-size="14.00">Requires</text>
+</g>
+<!-- Failsafe&#45;&gt;BatteryMonitor -->
+<g id="edge40" class="edge">
+<title>Failsafe-&gt;BatteryMonitor</title>
+<path fill="none" stroke="black" d="M312.37,-65.19C352.67,-73.63 425.81,-88.96 478.45,-99.98"/>
+<polygon fill="black" stroke="black" points="477.7,-103.4 488.2,-102.02 479.13,-96.55 477.7,-103.4"/>
+<text xml:space="preserve" text-anchor="middle" x="406.34" y="-99.73" font-family="Times,serif" font-size="14.00">Requires</text>
+</g>
+<!-- EmergencyStop&#45;&gt;Stabilize -->
+<g id="edge47" class="edge">
+<title>EmergencyStop-&gt;Stabilize</title>
+<path fill="none" stroke="black" stroke-dasharray="1,5" d="M1280.12,-779.56C1268.95,-767.49 1255.19,-750.87 1246.28,-734 1233.08,-709 1240.51,-698.48 1228.28,-673 1186.36,-585.62 1182.22,-550.87 1103.75,-494 1037.32,-445.86 1008.97,-441 926.94,-441 280.8,-441 280.8,-441 280.8,-441 199.6,-441 159.49,-427.73 103.99,-487 63.21,-530.55 48.61,-722.43 44.98,-782.77"/>
+<text xml:space="preserve" text-anchor="middle" x="676.86" y="-445.2" font-family="Times,serif" font-size="14.00">Conflicts</text>
+</g>
+<!-- EmergencyStop&#45;&gt;Autonomous -->
+<g id="edge43" class="edge">
+<title>EmergencyStop-&gt;Autonomous</title>
+<path fill="none" stroke="black" stroke-dasharray="1,5" d="M1246.47,-811.1C1240.36,-812.49 1234.19,-813.82 1228.28,-815 1071.37,-846.28 1030.03,-842.08 872.67,-871 817.04,-881.22 799.12,-872.71 748.13,-897.2 738.8,-901.68 739.88,-908.51 730.13,-912 685.56,-927.97 668.91,-925.72 623.59,-912 614.39,-909.21 614.28,-904.12 605.59,-900 510.39,-854.85 389.74,-824.3 326.31,-810.1"/>
+<text xml:space="preserve" text-anchor="middle" x="801.4" y="-901.4" font-family="Times,serif" font-size="14.00">Conflicts</text>
+</g>
+<!-- EmergencyStop&#45;&gt;PosHold -->
+<g id="edge45" class="edge">
+<title>EmergencyStop-&gt;PosHold</title>
+<path fill="none" stroke="black" stroke-dasharray="1,5" d="M1286.63,-779.61C1274.22,-762.01 1253.13,-736.12 1228.28,-722 1006.3,-595.86 676.29,-648.47 573.99,-669.12"/>
+<text xml:space="preserve" text-anchor="middle" x="925.94" y="-651.2" font-family="Times,serif" font-size="14.00">Conflicts</text>
+</g>
+<!-- EmergencyStop&#45;&gt;RTL -->
+<g id="edge46" class="edge">
+<title>EmergencyStop-&gt;RTL</title>
+<path fill="none" stroke="black" stroke-dasharray="1,5" d="M1352.66,-795.39C1375.52,-792.19 1401.74,-785.55 1422.15,-772 1438.6,-761.08 1450.74,-741.73 1458.05,-727.35"/>
+<text xml:space="preserve" text-anchor="middle" x="1396.49" y="-796.05" font-family="Times,serif" font-size="14.00">Conflicts</text>
+</g>
+<!-- EmergencyStop&#45;&gt;Manual -->
+<g id="edge44" class="edge">
+<title>EmergencyStop-&gt;Manual</title>
+<path fill="none" stroke="black" stroke-dasharray="1,5" d="M1246.56,-786.98C1196.62,-776.37 1127.85,-761.69 1121.75,-760 1107.96,-756.18 1092.91,-751.16 1080.3,-746.7"/>
+<text xml:space="preserve" text-anchor="middle" x="1175.02" y="-786.4" font-family="Times,serif" font-size="14.00">Conflicts</text>
+</g>
+<!-- EmergencyStop&#45;&gt;AltHold -->
+<g id="edge42" class="edge">
+<title>EmergencyStop-&gt;AltHold</title>
+<path fill="none" stroke="black" stroke-dasharray="1,5" d="M1291.71,-816.24C1281.66,-840.36 1260.54,-882.34 1228.28,-904 1141.34,-962.39 1089.01,-899.78 997.21,-950.2 987.07,-955.77 989.32,-963.39 979.21,-969 954.39,-982.77 876.28,-995.57 832.65,-1001.88"/>
+<text xml:space="preserve" text-anchor="middle" x="1050.48" y="-954.4" font-family="Times,serif" font-size="14.00">Conflicts</text>
+</g>
+<!-- Manual&#45;&gt;Stabilize -->
+<g id="edge53" class="edge">
+<title>Manual-&gt;Stabilize</title>
+<path fill="none" stroke="black" stroke-dasharray="1,5" d="M1039.23,-717.83C1024.16,-691.82 995.98,-646.09 979.21,-637 685.81,-477.87 561.14,-587.15 228.53,-615 172.6,-619.68 147.12,-600.07 103.99,-636 58.91,-673.55 47.7,-747.93 44.92,-782.51"/>
+<text xml:space="preserve" text-anchor="middle" x="541.6" y="-582.4" font-family="Times,serif" font-size="14.00">MutuallyExclusive</text>
+</g>
+<!-- Manual&#45;&gt;Autonomous -->
+<g id="edge50" class="edge">
+<title>Manual-&gt;Autonomous</title>
+<path fill="none" stroke="black" stroke-dasharray="1,5" d="M1020.86,-738.43C904.5,-748.29 466.39,-785.44 326.22,-797.32"/>
+<text xml:space="preserve" text-anchor="middle" x="676.86" y="-775.7" font-family="Times,serif" font-size="14.00">MutuallyExclusive</text>
+</g>
+<!-- Manual&#45;&gt;PosHold -->
+<g id="edge51" class="edge">
+<title>Manual-&gt;PosHold</title>
+<path fill="none" stroke="black" stroke-dasharray="1,5" d="M1020.85,-727.5C1008.13,-723.82 992.96,-719.55 979.21,-716 924.2,-701.82 910.99,-694.65 854.67,-687.2 752.82,-673.72 630.76,-674.06 574.22,-675.15"/>
+<text xml:space="preserve" text-anchor="middle" x="801.4" y="-691.4" font-family="Times,serif" font-size="14.00">MutuallyExclusive</text>
+</g>
+<!-- Manual&#45;&gt;RTL -->
+<g id="edge52" class="edge">
+<title>Manual-&gt;RTL</title>
+<path fill="none" stroke="black" stroke-dasharray="1,5" d="M1080.06,-729.76C1092.76,-727.23 1107.94,-724.55 1121.75,-723 1239.79,-709.75 1381.84,-708.63 1439.7,-708.8"/>
+<text xml:space="preserve" text-anchor="middle" x="1299.55" y="-717.39" font-family="Times,serif" font-size="14.00">MutuallyExclusive</text>
+</g>
+<!-- Manual&#45;&gt;EmergencyStop -->
+<g id="edge48" class="edge">
+<title>Manual-&gt;EmergencyStop</title>
+<path fill="none" stroke="black" stroke-dasharray="1,5" d="M1080.11,-730.84C1116.01,-725.63 1178.82,-720.72 1228.28,-739.2 1250.19,-747.38 1270.11,-765.55 1283.1,-779.55"/>
+<text xml:space="preserve" text-anchor="middle" x="1175.02" y="-743.4" font-family="Times,serif" font-size="14.00">Conflicts</text>
+</g>
+<!-- Manual&#45;&gt;AltHold -->
+<g id="edge49" class="edge">
+<title>Manual-&gt;AltHold</title>
+<path fill="none" stroke="black" stroke-dasharray="1,5" d="M1039.11,-754.13C1026.6,-775.07 1004.12,-809.84 979.21,-835 938.06,-876.55 906.55,-864.54 872.67,-912.2 856.59,-934.82 871.32,-949.79 854.67,-972 848.89,-979.71 840.81,-986.17 832.73,-991.31"/>
+<text xml:space="preserve" text-anchor="middle" x="925.94" y="-916.4" font-family="Times,serif" font-size="14.00">MutuallyExclusive</text>
+</g>
+<!-- AltHold&#45;&gt;Stabilize -->
+<g id="edge61" class="edge">
+<title>AltHold-&gt;Stabilize</title>
+<path fill="none" stroke="black" stroke-dasharray="1,5" d="M770.06,-1019.93C695.91,-1051.89 500.77,-1123.32 353.07,-1064 206.08,-1004.96 212.33,-923.55 85.99,-828 82.12,-825.07 77.93,-822.13 73.75,-819.33"/>
+<text xml:space="preserve" text-anchor="middle" x="406.34" y="-1090.26" font-family="Times,serif" font-size="14.00">MutuallyExclusive</text>
+</g>
+<!-- AltHold&#45;&gt;Barometer -->
+<g id="edge54" class="edge">
+<title>AltHold-&gt;Barometer</title>
+<path fill="none" stroke="black" d="M805.04,-1024.31C810.85,-1057.43 827.96,-1127.07 872.67,-1162 981.12,-1246.72 1421.03,-1237.7 1568.22,-1232.14"/>
+<polygon fill="black" stroke="black" points="1568.15,-1235.65 1578.01,-1231.76 1567.88,-1228.65 1568.15,-1235.65"/>
+<text xml:space="preserve" text-anchor="middle" x="1299.55" y="-1239.51" font-family="Times,serif" font-size="14.00">Requires</text>
+</g>
+<!-- AltHold&#45;&gt;Autonomous -->
+<g id="edge57" class="edge">
+<title>AltHold-&gt;Autonomous</title>
+<path fill="none" stroke="black" stroke-dasharray="1,5" d="M770.13,-1004.84C680.38,-1000.85 418.01,-984.88 353.07,-933 315.75,-903.18 295.77,-848.04 287.49,-819.38"/>
+<text xml:space="preserve" text-anchor="middle" x="541.6" y="-996.57" font-family="Times,serif" font-size="14.00">MutuallyExclusive</text>
+</g>
+<!-- AltHold&#45;&gt;PosHold -->
+<g id="edge59" class="edge">
+<title>AltHold-&gt;PosHold</title>
+<path fill="none" stroke="black" stroke-dasharray="1,5" d="M770.16,-992.33C761.78,-987.13 753.51,-980.38 748.13,-972 718.79,-926.33 767.93,-890.16 730.13,-851.2 696.63,-816.67 656.93,-866.69 623.59,-832 583.48,-790.26 640.73,-749.01 605.59,-703 597.87,-692.88 585.59,-686.51 573.93,-682.51"/>
+<text xml:space="preserve" text-anchor="middle" x="676.86" y="-855.4" font-family="Times,serif" font-size="14.00">MutuallyExclusive</text>
+</g>
+<!-- AltHold&#45;&gt;RTL -->
+<g id="edge60" class="edge">
+<title>AltHold-&gt;RTL</title>
+<path fill="none" stroke="black" stroke-dasharray="1,5" d="M832.77,-1021.02C844.87,-1026.22 859.13,-1031.4 872.67,-1034 934.85,-1045.93 1162.1,-1051.81 1228.28,-1030 1337.97,-993.86 1367.86,-958.92 1422.15,-857 1445.34,-813.47 1457.93,-756.06 1463.17,-727.21"/>
+<text xml:space="preserve" text-anchor="middle" x="1175.02" y="-1047.4" font-family="Times,serif" font-size="14.00">MutuallyExclusive</text>
+</g>
+<!-- AltHold&#45;&gt;IMU -->
+<g id="edge55" class="edge">
+<title>AltHold-&gt;IMU</title>
+<path fill="none" stroke="black" d="M823.23,-1024.39C836.43,-1034.84 854.4,-1047.01 872.67,-1053 1076.38,-1119.79 1186.43,-1142.18 1352.82,-1007 1543.24,-852.3 1599.78,-532.75 1613,-434.43"/>
+<polygon fill="black" stroke="black" points="1616.43,-435.18 1614.24,-424.81 1609.49,-434.28 1616.43,-435.18"/>
+<text xml:space="preserve" text-anchor="middle" x="1299.55" y="-1079.49" font-family="Times,serif" font-size="14.00">Requires</text>
+</g>
+<!-- AltHold&#45;&gt;EmergencyStop -->
+<g id="edge56" class="edge">
+<title>AltHold-&gt;EmergencyStop</title>
+<path fill="none" stroke="black" stroke-dasharray="1,5" d="M832.57,-1005.29C867.88,-1004.15 928.03,-1001.24 979.21,-994 1092.27,-977.99 1139.72,-1003.07 1228.28,-931 1265.55,-900.67 1285.55,-845.23 1293.85,-816.45"/>
+<text xml:space="preserve" text-anchor="middle" x="1050.48" y="-995.89" font-family="Times,serif" font-size="14.00">Conflicts</text>
+</g>
+<!-- AltHold&#45;&gt;Manual -->
+<g id="edge58" class="edge">
+<title>AltHold-&gt;Manual</title>
+<path fill="none" stroke="black" stroke-dasharray="1,5" d="M832.65,-988.2C840.12,-983.31 847.91,-977.75 854.67,-972 863.73,-964.29 862.37,-958.15 872.67,-952.2 914.64,-927.97 942.71,-960.88 979.21,-929 1032.25,-882.67 1045.27,-792.95 1048.45,-754.37"/>
+<text xml:space="preserve" text-anchor="middle" x="925.94" y="-956.4" font-family="Times,serif" font-size="14.00">MutuallyExclusive</text>
+</g>
+<!-- ESC&#45;&gt;BatteryMonitor -->
+<g id="edge62" class="edge">
+<title>ESC-&gt;BatteryMonitor</title>
+<path fill="none" stroke="black" d="M308.94,-124.68C348.38,-122.69 424.23,-118.87 478.4,-116.14"/>
+<polygon fill="black" stroke="black" points="478.28,-119.65 488.1,-115.65 477.93,-112.66 478.28,-119.65"/>
+<text xml:space="preserve" text-anchor="middle" x="406.34" y="-126.36" font-family="Times,serif" font-size="14.00">Requires</text>
+</g>
+</g>
+</svg>
