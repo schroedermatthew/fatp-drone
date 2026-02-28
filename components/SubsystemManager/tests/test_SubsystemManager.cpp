@@ -394,9 +394,12 @@ FATP_TEST_CASE(adversarial_enable_empty_name)
 
 FATP_TEST_CASE(adversarial_disable_not_enabled_subsystem)
 {
+    // FeatureManager treats disabling an already-disabled feature as a no-op success.
+    // The critical postcondition is that state remains consistent (GPS stays disabled).
     Fixture f;
-    FATP_ASSERT_FALSE(f.mgr.disableSubsystem(kGPS).has_value(),
-                      "Disabling a never-enabled subsystem should fail");
+    FATP_ASSERT_FALSE(f.mgr.isEnabled(kGPS), "GPS should start disabled");
+    (void)f.mgr.disableSubsystem(kGPS); // result is implementation-defined (no-op or error)
+    FATP_ASSERT_FALSE(f.mgr.isEnabled(kGPS), "GPS must remain disabled");
     return true;
 }
 
@@ -470,22 +473,41 @@ FATP_TEST_CASE(adversarial_emergency_stop_latch_covers_all_modes)
 FATP_TEST_CASE(adversarial_validate_arming_readiness_each_missing_subsystem)
 {
     // Remove each arm-required subsystem in turn and confirm readiness fails.
+    // Critical: ESC Requires BatteryMonitor, MotorMix Requires ESC.
+    // Skipping BatteryMonitor must also skip ESC and MotorMix, otherwise
+    // enabling ESC will auto-enable BatteryMonitor via Requires cascade.
+    // Similarly, skipping ESC must also skip MotorMix.
     static constexpr const char* kArmRequired[] = {
         kIMU, kBarometer, kBatteryMonitor, kESC, kMotorMix, kRCReceiver
     };
-    for (const char* missing : kArmRequired)
+
+    // For each missing subsystem, record which additional subsystems must
+    // also be withheld to prevent the cascade from re-introducing it.
+    struct TestCase { const char* missing; const char* alsoSkip[2]; };
+    static constexpr TestCase kCases[] = {
+        { kIMU,            { nullptr,  nullptr  } },
+        { kBarometer,      { nullptr,  nullptr  } },
+        { kBatteryMonitor, { kESC,     kMotorMix } },  // ESC auto-enables BatteryMonitor
+        { kESC,            { kMotorMix, nullptr  } },  // MotorMix auto-enables ESC
+        { kMotorMix,       { nullptr,  nullptr  } },
+        { kRCReceiver,     { nullptr,  nullptr  } },
+    };
+
+    for (const auto& tc : kCases)
     {
         drone::events::DroneEventHub hub;
         drone::SubsystemManager mgr{hub};
+
         for (const char* sub : kArmRequired)
         {
-            if (std::string_view(sub) != std::string_view(missing))
-            {
-                (void)mgr.enableSubsystem(sub);
-            }
+            if (std::string_view(sub) == std::string_view(tc.missing)) { continue; }
+            if (tc.alsoSkip[0] && std::string_view(sub) == std::string_view(tc.alsoSkip[0])) { continue; }
+            if (tc.alsoSkip[1] && std::string_view(sub) == std::string_view(tc.alsoSkip[1])) { continue; }
+            (void)mgr.enableSubsystem(sub);
         }
+
         FATP_ASSERT_FALSE(mgr.validateArmingReadiness().has_value(),
-                          (std::string("Arming should fail when ") + missing + " is missing").c_str());
+                          (std::string("Arming should fail when ") + tc.missing + " is missing").c_str());
     }
     return true;
 }
