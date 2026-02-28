@@ -267,11 +267,45 @@ jobs:
         run: ctest --test-dir build --output-on-failure --parallel 4
 
   # ===========================================================================
+  # Strict Warnings (C++20, GCC 13)
+  # ===========================================================================
+  strict-warnings:
+    name: Strict Warnings
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout fatp-drone
+        uses: actions/checkout@v4
+        with:
+          path: fatp-drone
+
+      - name: Checkout FatP (dependency)
+        uses: actions/checkout@v4
+        with:
+          repository: schroedermatthew/FatP
+          path: FatP
+
+      - name: Install tools
+        run: sudo apt-get update -qq && sudo apt-get install -y cmake ninja-build
+
+      - name: Configure
+        working-directory: fatp-drone
+        run: |
+          cmake -B build -G Ninja \
+            -DCMAKE_CXX_COMPILER=g++-13 \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_CXX_FLAGS="-Wall -Wextra -Wpedantic -Wconversion -Wsign-conversion -Wshadow -Wformat=2 -Werror" \
+            -DFATP_INCLUDE_DIR=${{ github.workspace }}/FatP/include/fat_p
+
+      - name: Build
+        working-directory: fatp-drone
+        run: cmake --build build --parallel
+
+  # ===========================================================================
   # CI Gate
   # ===========================================================================
   ci-success:
     name: CI Success
-    needs: [linux-gcc, linux-clang, windows-msvc, sanitizer-asan, sanitizer-ubsan]
+    needs: [linux-gcc, linux-clang, windows-msvc, sanitizer-asan, sanitizer-ubsan, strict-warnings]
     runs-on: ubuntu-latest
     if: always()
     steps:
@@ -282,4 +316,5 @@ jobs:
           if [[ "${{ needs.windows-msvc.result }}" != "success" ]]; then exit 1; fi
           if [[ "${{ needs.sanitizer-asan.result }}" != "success" ]]; then exit 1; fi
           if [[ "${{ needs.sanitizer-ubsan.result }}" != "success" ]]; then exit 1; fi
+          if [[ "${{ needs.strict-warnings.result }}" != "success" ]]; then exit 1; fi
           echo "All checks passed"
