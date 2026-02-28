@@ -32,12 +32,17 @@ FATP_META:
  * constraint enforcement automatically.
  *
  * Dependency graph summary:
+ *
+ * Flight modes are MutuallyExclusive — they cannot chain via Requires
+ * (AltHold cannot Require Stabilize since they conflict with each other).
+ * Each mode independently declares its own sensor requirements.
+ *
  * - Stabilize  Requires  IMU, Barometer
- * - AltHold    Requires  Stabilize, Barometer
- * - PosHold    Requires  AltHold, GPS
- * - Autonomous Requires  PosHold, Datalink, CollisionAvoidance
- * - Autonomous Implies   CollisionAvoidance  (auto-enable)
- * - RTL        Requires  GPS, AltHold
+ * - AltHold    Requires  IMU, Barometer
+ * - PosHold    Requires  IMU, Barometer, GPS
+ * - Autonomous Requires  IMU, Barometer, GPS, Datalink, CollisionAvoidance
+ * - Autonomous Implies   CollisionAvoidance  (auto-enable on enable)
+ * - RTL        Requires  IMU, Barometer, GPS
  * - MotorMix   Requires  ESC
  * - ESC        Requires  BatteryMonitor
  * - Failsafe   Requires  BatteryMonitor, RCReceiver

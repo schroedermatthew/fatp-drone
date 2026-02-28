@@ -44,7 +44,8 @@ FATP_META:
  *   disarm                -- request disarm transition
  *   takeoff               -- request takeoff transition
  *   land                  -- request land transition
- *   landing_complete      -- signal that landing is finished
+ *   landing_complete      -- signal that landing is finished (Landing -> Armed)
+ *   disarm_after_landing  -- disarm directly from landing (Landing -> Preflight)
  *   emergency [reason]    -- trigger emergency stop
  *   reset                 -- reset from Emergency to Preflight
  *   log [n]               -- show last n telemetry entries (default 20)
@@ -153,7 +154,8 @@ public:
         if (cmd == "disarm")  { return cmdDisarm(); }
         if (cmd == "takeoff") { return cmdTakeoff(); }
         if (cmd == "land")    { return cmdLand(); }
-        if (cmd == "landing_complete") { return cmdLandingComplete(); }
+        if (cmd == "landing_complete")     { return cmdLandingComplete(); }
+        if (cmd == "disarm_after_landing") { return cmdDisarmAfterLanding(); }
         if (cmd == "emergency") { return cmdEmergency(arg.empty() ? "operator request" : arg); }
         if (cmd == "reset")   { return cmdReset(); }
         if (cmd == "log")     { return cmdLog(arg); }
@@ -180,6 +182,7 @@ public:
             "  takeoff               -- take off (Armed -> Flying)\n"
             "  land                  -- land (Flying -> Landing)\n"
             "  landing_complete      -- signal landing complete (Landing -> Armed)\n"
+            "  disarm_after_landing  -- disarm directly from landing (Landing -> Preflight)\n"
             "  emergency [reason]    -- trigger emergency stop\n"
             "  reset                 -- reset from Emergency to Preflight\n"
             "  log [n]               -- show last n telemetry entries (default 20)\n"
@@ -311,6 +314,16 @@ private:
             return {false, res.error()};
         }
         return {true, "Landing complete. Vehicle is Armed."};
+    }
+
+    CommandResult cmdDisarmAfterLanding()
+    {
+        auto res = mSM.requestDisarmAfterLanding();
+        if (!res)
+        {
+            return {false, res.error()};
+        }
+        return {true, "Disarmed after landing. Vehicle is in Preflight state."};
     }
 
     CommandResult cmdEmergency(const std::string& reason)

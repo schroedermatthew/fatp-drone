@@ -6,7 +6,7 @@ The premise: feature flags in real systems are not booleans. They have dependenc
 
 Five relationship types. Transitive dependency resolution. Cycle detection with path reporting. Observer pattern with RAII lifetime management. JSON round-trip serialization. GraphViz DOT export. Pluggable thread-safety policy. And a `Preempts` relationship built specifically for e-stop and override scenarios — enabling the source forcibly disables the target, cascades through its reverse-dependency closure, and latches inhibit so nothing can sneak back on.
 
-This component was built by an AI pair-programmer. The FAT-P development guidelines — covering code standards, naming conventions, test structure, benchmark methodology, CI workflow, documentation style, and AI operational behavior — were transferred from the parent library and edited to fit this project. The AI works from those adapted guidelines and produces code and tests to that standard from the start, rather than having a human retrofit compliance afterward. FeatureManager is the result: 2,662 lines of production C++20, 44 passing tests, full JSON serialization, and a drone demo that exercises the complete feature graph under realistic safety constraints.
+This component was built by an AI pair-programmer. The FAT-P development guidelines — covering code standards, naming conventions, test structure, benchmark methodology, CI workflow, documentation style, and AI operational behavior — were transferred from the parent library and edited to fit this project. The AI works from those adapted guidelines and produces code and tests to that standard from the start, rather than having a human retrofit compliance afterward. FeatureManager is the result: 44 passing tests, full JSON serialization, and a drone demo that exercises the complete feature graph under realistic safety constraints.
 
 [![CI](https://github.com/schroedermatthew/fatp-drone/actions/workflows/fatp-drone.yml/badge.svg?event=push)](https://github.com/schroedermatthew/fatp-drone/actions/workflows/fatp-drone.yml)
 
@@ -169,7 +169,7 @@ Vehicle lifecycle: `Preflight → Armed → Flying → Landing → Armed` (or `�
 
 ## Tests
 
-44 unit tests across logic, observer, serialization, and Preempts coverage. The drone demo adds 78 more across SubsystemManager, VehicleStateMachine, TelemetryLog, and DroneCore integration suites.
+44 unit tests across logic, observer, serialization, and Preempts coverage. The drone demo adds 139 more across SubsystemManager (40), VehicleStateMachine (37), TelemetryLog (17), and DroneCore integration (45) suites. Each suite now includes adversarial wrong-state probes and stress/fuzz sequences.
 
 ---
 
