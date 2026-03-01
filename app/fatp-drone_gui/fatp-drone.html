@@ -175,7 +175,7 @@ header{display:flex;align-items:center;justify-content:space-between;padding:10p
 .sm-arrow.blocked-arrow{background:var(--danger);}
 .sm-arrow.blocked-arrow::after{color:var(--danger);}
 
-.em-corner{position:absolute;right:16px;bottom:6px;}
+.em-corner{display:flex;align-items:center;margin-left:auto;padding-left:16px;border-left:1px solid var(--border);}
 
 /* Graph area */
 .graph-shell{
@@ -787,8 +787,7 @@ function doCmd(cmd) {
 }
 
 function doEmergency() {
-  const reason = prompt('Emergency reason (blank = "operator request"):') ?? '';
-  doCmd('emergency ' + (reason.trim() || 'operator request'));
+  doCmd('emergency operator request');
 }
 
 function toggleSub(name) {
