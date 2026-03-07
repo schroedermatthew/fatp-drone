@@ -439,6 +439,14 @@ public:
             return reject("reset", "must be in Emergency state");
         }
 
+        // Disable EmergencyStop before transitioning so the Preempts latch is
+        // lifted and flight modes are usable again after the reset completes.
+        auto clearResult = mContext.subsystems.resetEmergencyStop();
+        if (!clearResult)
+        {
+            return reject("reset", "failed to clear EmergencyStop: " + clearResult.error());
+        }
+
         mSM.transition<PreflightState>();
         return {};
     }

@@ -218,6 +218,19 @@ public:
     }
 
     /**
+     * @brief Disables EmergencyStop, lifting the Preempts latch on all flight modes.
+     *
+     * Must be called as part of the emergency reset sequence before flight modes
+     * can be re-enabled. Safe to call if EmergencyStop is already disabled (no-op).
+     *
+     * @return Expected<void> on success, or error string.
+     */
+    [[nodiscard]] fat_p::Expected<void, std::string> resetEmergencyStop()
+    {
+        return mManager.disable(std::string(subsystems::kEmergencyStop));
+    }
+
+    /**
      * @brief Returns any currently active flight mode name, or empty string if none.
      */
     [[nodiscard]] std::string activeFlightMode() const
