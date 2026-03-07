@@ -72,6 +72,19 @@ struct Fixture
         enableArmingSubsystems();
         (void)mgr.enableSubsystem(kManual);
     }
+
+    void goFlying()
+    {
+        enableArmingAndManual();
+        (void)sm.requestArm();
+        (void)sm.requestTakeoff();
+    }
+
+    void goLanding()
+    {
+        goFlying();
+        (void)sm.requestLand();
+    }
 };
 
 // ============================================================================
@@ -282,8 +295,10 @@ FATP_TEST_CASE(reset_from_emergency)
     (void)f.sm.requestEmergency("test");
 
     auto res = f.sm.requestReset();
-    FATP_ASSERT_TRUE(res.has_value(), "Reset should succeed from Emergency");
+    FATP_ASSERT_TRUE(res.has_value(),    "Reset should succeed from Emergency");
     FATP_ASSERT_TRUE(f.sm.isPreflight(), "Should return to Preflight after reset");
+    FATP_ASSERT_FALSE(f.mgr.isEnabled(kEmergencyStop),
+                      "EmergencyStop must be disabled after reset");
     return true;
 }
 
@@ -356,6 +371,251 @@ FATP_TEST_CASE(transition_rejected_event_fired)
 
 } // namespace fat_p::testing::vehiclestatemachine
 
+// ============================================================================
+// These tests are defined outside the inner namespace so the runner can find
+// them — they are still in the vehiclestatemachine test suite.
+// ============================================================================
+
+namespace fat_p::testing::vehiclestatemachine
+{
+
+// ============================================================================
+// Bug fix: full arm -> emergency -> reset -> re-arm -> takeoff cycle
+// ============================================================================
+
+FATP_TEST_CASE(reset_clears_emergency_stop_latch)
+{
+    // The full recovery path: arm, trigger emergency (kEmergencyStop latches),
+    // reset (latch cleared), re-arm, takeoff. Any failure here is the Section 2 bug.
+    Fixture f;
+    f.enableArmingAndManual();
+
+    FATP_ASSERT_TRUE(f.sm.requestArm().has_value(),             "arm");
+    FATP_ASSERT_TRUE(f.sm.requestEmergency("engine").has_value(),"emergency");
+    FATP_ASSERT_TRUE(f.mgr.isEnabled(kEmergencyStop),           "EmergencyStop latched after emergency");
+
+    FATP_ASSERT_TRUE(f.sm.requestReset().has_value(),           "reset");
+    FATP_ASSERT_TRUE(f.sm.isPreflight(),                        "back in Preflight");
+    FATP_ASSERT_FALSE(f.mgr.isEnabled(kEmergencyStop),          "EmergencyStop cleared after reset");
+
+    // Re-enable Manual (forceExclusive cleared it during emergency)
+    FATP_ASSERT_TRUE(f.mgr.enableSubsystem(kManual).has_value(),"re-enable Manual after latch clear");
+    FATP_ASSERT_TRUE(f.sm.requestArm().has_value(),             "re-arm after reset");
+    FATP_ASSERT_TRUE(f.sm.requestTakeoff().has_value(),         "takeoff after re-arm");
+    FATP_ASSERT_TRUE(f.sm.isFlying(),                           "flying after full recovery");
+    return true;
+}
+
+// ============================================================================
+// Adversarial — invalid transitions from every wrong state
+// (merged from components/VehicleStateMachine/test_VehicleStateMachine.cpp)
+// ============================================================================
+
+FATP_TEST_CASE(adversarial_disarm_fails_from_flying)
+{
+    Fixture f;
+    f.goFlying();
+    FATP_ASSERT_FALSE(f.sm.requestDisarm().has_value(), "Disarm should fail from Flying");
+    FATP_ASSERT_TRUE(f.sm.isFlying(), "Should remain Flying");
+    return true;
+}
+
+FATP_TEST_CASE(adversarial_disarm_fails_from_landing)
+{
+    Fixture f;
+    f.goLanding();
+    FATP_ASSERT_FALSE(f.sm.requestDisarm().has_value(), "Disarm should fail from Landing");
+    FATP_ASSERT_TRUE(f.sm.isLanding(), "Should remain Landing");
+    return true;
+}
+
+FATP_TEST_CASE(adversarial_disarm_fails_from_emergency)
+{
+    Fixture f;
+    f.enableArmingSubsystems();
+    (void)f.sm.requestArm();
+    (void)f.sm.requestEmergency("test");
+    FATP_ASSERT_FALSE(f.sm.requestDisarm().has_value(), "Disarm should fail from Emergency");
+    FATP_ASSERT_TRUE(f.sm.isEmergency(), "Should remain Emergency");
+    return true;
+}
+
+FATP_TEST_CASE(adversarial_takeoff_fails_from_flying)
+{
+    Fixture f;
+    f.goFlying();
+    FATP_ASSERT_FALSE(f.sm.requestTakeoff().has_value(), "Takeoff should fail when already Flying");
+    FATP_ASSERT_TRUE(f.sm.isFlying(), "Should remain Flying");
+    return true;
+}
+
+FATP_TEST_CASE(adversarial_takeoff_fails_from_landing)
+{
+    Fixture f;
+    f.goLanding();
+    FATP_ASSERT_FALSE(f.sm.requestTakeoff().has_value(), "Takeoff should fail from Landing");
+    FATP_ASSERT_TRUE(f.sm.isLanding(), "Should remain Landing");
+    return true;
+}
+
+FATP_TEST_CASE(adversarial_land_fails_from_preflight)
+{
+    Fixture f;
+    FATP_ASSERT_FALSE(f.sm.requestLand().has_value(), "Land should fail from Preflight");
+    FATP_ASSERT_TRUE(f.sm.isPreflight(), "Should remain Preflight");
+    return true;
+}
+
+FATP_TEST_CASE(adversarial_land_fails_from_landing)
+{
+    Fixture f;
+    f.goLanding();
+    FATP_ASSERT_FALSE(f.sm.requestLand().has_value(), "Land should fail when already Landing");
+    FATP_ASSERT_TRUE(f.sm.isLanding(), "Should remain Landing");
+    return true;
+}
+
+FATP_TEST_CASE(adversarial_landing_complete_fails_from_armed)
+{
+    Fixture f;
+    f.enableArmingSubsystems();
+    (void)f.sm.requestArm();
+    FATP_ASSERT_FALSE(f.sm.requestLandingComplete().has_value(),
+                      "LandingComplete should fail from Armed");
+    FATP_ASSERT_TRUE(f.sm.isArmed(), "Should remain Armed");
+    return true;
+}
+
+FATP_TEST_CASE(adversarial_landing_complete_fails_from_preflight)
+{
+    Fixture f;
+    FATP_ASSERT_FALSE(f.sm.requestLandingComplete().has_value(),
+                      "LandingComplete should fail from Preflight");
+    FATP_ASSERT_TRUE(f.sm.isPreflight(), "Should remain Preflight");
+    return true;
+}
+
+FATP_TEST_CASE(adversarial_disarm_after_landing_fails_from_armed)
+{
+    Fixture f;
+    f.enableArmingSubsystems();
+    (void)f.sm.requestArm();
+    FATP_ASSERT_FALSE(f.sm.requestDisarmAfterLanding().has_value(),
+                      "DisarmAfterLanding should fail from Armed (not Landing)");
+    FATP_ASSERT_TRUE(f.sm.isArmed(), "Should remain Armed");
+    return true;
+}
+
+FATP_TEST_CASE(adversarial_disarm_after_landing_fails_from_preflight)
+{
+    Fixture f;
+    FATP_ASSERT_FALSE(f.sm.requestDisarmAfterLanding().has_value(),
+                      "DisarmAfterLanding should fail from Preflight");
+    FATP_ASSERT_TRUE(f.sm.isPreflight(), "Should remain Preflight");
+    return true;
+}
+
+FATP_TEST_CASE(adversarial_emergency_fails_from_emergency)
+{
+    Fixture f;
+    f.enableArmingSubsystems();
+    (void)f.sm.requestArm();
+    (void)f.sm.requestEmergency("first");
+    FATP_ASSERT_FALSE(f.sm.requestEmergency("second").has_value(),
+                      "Emergency should fail when already in Emergency");
+    FATP_ASSERT_TRUE(f.sm.isEmergency(), "Should remain in Emergency");
+    return true;
+}
+
+FATP_TEST_CASE(adversarial_arm_fails_when_already_armed)
+{
+    Fixture f;
+    f.enableArmingSubsystems();
+    (void)f.sm.requestArm();
+    FATP_ASSERT_FALSE(f.sm.requestArm().has_value(), "Arm should fail when already Armed");
+    FATP_ASSERT_TRUE(f.sm.isArmed(), "Should remain Armed");
+    return true;
+}
+
+FATP_TEST_CASE(adversarial_reset_fails_from_armed)
+{
+    Fixture f;
+    f.enableArmingSubsystems();
+    (void)f.sm.requestArm();
+    FATP_ASSERT_FALSE(f.sm.requestReset().has_value(), "Reset should fail from Armed (not Emergency)");
+    FATP_ASSERT_TRUE(f.sm.isArmed(), "Should remain Armed");
+    return true;
+}
+
+// ============================================================================
+// Stress — repeated full flight cycles
+// ============================================================================
+
+FATP_TEST_CASE(stress_repeated_arm_disarm_cycles)
+{
+    Fixture f;
+    f.enableArmingSubsystems();
+
+    for (int i = 0; i < 20; ++i)
+    {
+        FATP_ASSERT_TRUE(f.sm.requestArm().has_value(),    "Arm should succeed on cycle");
+        FATP_ASSERT_TRUE(f.sm.isArmed(),                   "Should be Armed");
+        FATP_ASSERT_TRUE(f.sm.requestDisarm().has_value(), "Disarm should succeed on cycle");
+        FATP_ASSERT_TRUE(f.sm.isPreflight(),               "Should return to Preflight");
+    }
+    return true;
+}
+
+FATP_TEST_CASE(stress_repeated_full_flight_cycle)
+{
+    for (int i = 0; i < 10; ++i)
+    {
+        drone::events::DroneEventHub hub;
+        drone::SubsystemManager      mgr{hub};
+        drone::VehicleStateMachine   sm{mgr, hub};
+
+        (void)mgr.enableSubsystem(kIMU);
+        (void)mgr.enableSubsystem(kBarometer);
+        (void)mgr.enableSubsystem(kMotorMix);
+        (void)mgr.enableSubsystem(kRCReceiver);
+        (void)mgr.enableSubsystem(kManual);
+
+        FATP_ASSERT_TRUE(sm.requestArm().has_value(),             "arm");
+        FATP_ASSERT_TRUE(sm.requestTakeoff().has_value(),         "takeoff");
+        FATP_ASSERT_TRUE(sm.requestLand().has_value(),            "land");
+        FATP_ASSERT_TRUE(sm.requestLandingComplete().has_value(), "landing_complete");
+        FATP_ASSERT_TRUE(sm.requestDisarm().has_value(),          "disarm");
+        FATP_ASSERT_TRUE(sm.isPreflight(),                        "back to Preflight");
+    }
+    return true;
+}
+
+FATP_TEST_CASE(stress_emergency_and_reset_cycle)
+{
+    for (int i = 0; i < 15; ++i)
+    {
+        drone::events::DroneEventHub hub;
+        drone::SubsystemManager      mgr{hub};
+        drone::VehicleStateMachine   sm{mgr, hub};
+
+        (void)mgr.enableSubsystem(kIMU);
+        (void)mgr.enableSubsystem(kBarometer);
+        (void)mgr.enableSubsystem(kMotorMix);
+        (void)mgr.enableSubsystem(kRCReceiver);
+
+        FATP_ASSERT_TRUE(sm.requestArm().has_value(),                    "arm for emergency cycle");
+        FATP_ASSERT_TRUE(sm.requestEmergency("stress test").has_value(), "emergency");
+        FATP_ASSERT_TRUE(sm.isEmergency(),                               "in Emergency");
+        FATP_ASSERT_FALSE(mgr.isEnabled(kEmergencyStop) == false,        "EmergencyStop active");
+        FATP_ASSERT_TRUE(sm.requestReset().has_value(),                  "reset");
+        FATP_ASSERT_TRUE(sm.isPreflight(),                               "back to Preflight");
+        FATP_ASSERT_FALSE(mgr.isEnabled(kEmergencyStop),                 "latch cleared after reset");
+    }
+    return true;
+}
+
+} // namespace fat_p::testing::vehiclestatemachine
+
 namespace fat_p::testing
 {
 
@@ -365,6 +625,7 @@ bool test_VehicleStateMachine()
 
     TestRunner runner;
 
+    // Basic / happy path
     FATP_RUN_TEST_NS(runner, vehiclestatemachine, initial_state_is_preflight);
     FATP_RUN_TEST_NS(runner, vehiclestatemachine, arm_fails_without_required_subsystems);
     FATP_RUN_TEST_NS(runner, vehiclestatemachine, arm_succeeds_with_required_subsystems);
@@ -385,6 +646,30 @@ bool test_VehicleStateMachine()
     FATP_RUN_TEST_NS(runner, vehiclestatemachine, emergency_fails_from_preflight);
     FATP_RUN_TEST_NS(runner, vehiclestatemachine, state_transition_events_fired);
     FATP_RUN_TEST_NS(runner, vehiclestatemachine, transition_rejected_event_fired);
+
+    // Bug fix: reset clears EmergencyStop latch (arm -> emergency -> reset -> re-arm -> takeoff)
+    FATP_RUN_TEST_NS(runner, vehiclestatemachine, reset_clears_emergency_stop_latch);
+
+    // Adversarial — invalid transitions from every wrong state
+    FATP_RUN_TEST_NS(runner, vehiclestatemachine, adversarial_disarm_fails_from_flying);
+    FATP_RUN_TEST_NS(runner, vehiclestatemachine, adversarial_disarm_fails_from_landing);
+    FATP_RUN_TEST_NS(runner, vehiclestatemachine, adversarial_disarm_fails_from_emergency);
+    FATP_RUN_TEST_NS(runner, vehiclestatemachine, adversarial_takeoff_fails_from_flying);
+    FATP_RUN_TEST_NS(runner, vehiclestatemachine, adversarial_takeoff_fails_from_landing);
+    FATP_RUN_TEST_NS(runner, vehiclestatemachine, adversarial_land_fails_from_preflight);
+    FATP_RUN_TEST_NS(runner, vehiclestatemachine, adversarial_land_fails_from_landing);
+    FATP_RUN_TEST_NS(runner, vehiclestatemachine, adversarial_landing_complete_fails_from_armed);
+    FATP_RUN_TEST_NS(runner, vehiclestatemachine, adversarial_landing_complete_fails_from_preflight);
+    FATP_RUN_TEST_NS(runner, vehiclestatemachine, adversarial_disarm_after_landing_fails_from_armed);
+    FATP_RUN_TEST_NS(runner, vehiclestatemachine, adversarial_disarm_after_landing_fails_from_preflight);
+    FATP_RUN_TEST_NS(runner, vehiclestatemachine, adversarial_emergency_fails_from_emergency);
+    FATP_RUN_TEST_NS(runner, vehiclestatemachine, adversarial_arm_fails_when_already_armed);
+    FATP_RUN_TEST_NS(runner, vehiclestatemachine, adversarial_reset_fails_from_armed);
+
+    // Stress
+    FATP_RUN_TEST_NS(runner, vehiclestatemachine, stress_repeated_arm_disarm_cycles);
+    FATP_RUN_TEST_NS(runner, vehiclestatemachine, stress_repeated_full_flight_cycle);
+    FATP_RUN_TEST_NS(runner, vehiclestatemachine, stress_emergency_and_reset_cycle);
 
     return 0 == runner.print_summary();
 }

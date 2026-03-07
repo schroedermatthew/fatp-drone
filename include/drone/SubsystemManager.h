@@ -47,7 +47,10 @@ FATP_META:
  * - ESC        Requires  BatteryMonitor
  * - Failsafe   Requires  BatteryMonitor, RCReceiver
  * - FlightModes group: MutuallyExclusive (Manual, Stabilize, AltHold, PosHold, Autonomous, RTL)
- * - EmergencyStop Preempts all flight modes (force-disables active mode + latched inhibit)
+ * - EmergencyStop: triggered via triggerEmergencyStop(), which calls forceExclusive() to
+ *   atomically clear all feature states and enable EmergencyStop. Re-enabling any flight
+ *   mode while EmergencyStop is active is blocked by a guard in enableSubsystem().
+ *   Call resetEmergencyStop() (e.g. from requestReset()) to clear the latch.
  *
  * @see fat_p::feature::FeatureManager
  */
@@ -105,14 +108,26 @@ public:
     /**
      * @brief Enables a subsystem, automatically resolving Requires/Implies dependencies.
      *
+     * Rejects the request if the subsystem is a flight mode and EmergencyStop is
+     * currently active. This is the A2 latch that prevents flight modes from being
+     * re-enabled after an emergency without an explicit reset via resetEmergencyStop().
+     *
      * @param name Subsystem name constant (e.g., drone::subsystems::kAutonomous).
-     * @return Expected<void> on success, or error string describing the conflict or
-     *         missing dependency.
+     * @return Expected<void> on success, or error string describing the conflict,
+     *         missing dependency, or active EmergencyStop latch.
      *
      * @note Complexity: O(d * log n) where d = dependency depth.
      */
     [[nodiscard]] fat_p::Expected<void, std::string> enableSubsystem(std::string_view name)
     {
+        if (isFlightMode(name) && mManager.isEnabled(std::string(subsystems::kEmergencyStop)))
+        {
+            std::string msg =
+                std::string("cannot enable '") + std::string(name) + "' while EmergencyStop is active";
+            mEvents.onSubsystemError.emit(name, msg);
+            return fat_p::unexpected(std::move(msg));
+        }
+
         auto res = mManager.enable(std::string(name));
         if (!res)
         {
@@ -135,6 +150,75 @@ public:
         if (!res)
         {
             mEvents.onSubsystemError.emit(name, res.error());
+        }
+        return res;
+    }
+
+    /**
+     * @brief Atomically disables the current flight mode and enables a new one.
+     *
+     * Uses replace() when a flight mode is already active, which satisfies the
+     * MutuallyExclusive constraint in a single lock and preserves shared sensors
+     * (IMU, Barometer) that both modes Require. Falls back to enableSubsystem()
+     * when no flight mode is currently active.
+     *
+     * @param newMode Flight mode name to switch to.
+     * @return Expected<void> on success, or error string.
+     */
+    [[nodiscard]] fat_p::Expected<void, std::string> switchFlightMode(std::string_view newMode)
+    {
+        const std::string current = activeFlightMode();
+        if (current.empty())
+        {
+            return enableSubsystem(newMode);
+        }
+
+        auto res = mManager.replace(current, std::string(newMode));
+        if (!res)
+        {
+            mEvents.onSubsystemError.emit(newMode, res.error());
+        }
+        return res;
+    }
+
+    /**
+     * @brief Triggers an emergency stop by atomically clearing all feature states
+     *        and enabling EmergencyStop.
+     *
+     * Uses forceExclusive(), which blanks all desiredStates to false before enabling
+     * EmergencyStop and its Requires closure. No MutuallyExclusive or Conflicts
+     * constraint can block it. All sensors, flight modes, and other subsystems are
+     * disabled as a side effect.
+     *
+     * After this call, no flight mode can be re-enabled until resetEmergencyStop()
+     * is called (enforced by the A2 guard in enableSubsystem()).
+     *
+     * @return Expected<void> on success, or error string.
+     */
+    [[nodiscard]] fat_p::Expected<void, std::string> triggerEmergencyStop()
+    {
+        auto res = mManager.forceExclusive(std::string(subsystems::kEmergencyStop));
+        if (!res)
+        {
+            mEvents.onSubsystemError.emit(subsystems::kEmergencyStop, res.error());
+        }
+        return res;
+    }
+
+    /**
+     * @brief Clears the EmergencyStop latch so flight modes can be re-enabled.
+     *
+     * Disables the EmergencyStop feature. Must be called as part of the reset
+     * sequence before the vehicle state machine transitions back to Preflight.
+     *
+     * @return Expected<void> on success, or error string.
+     */
+    [[nodiscard]] fat_p::Expected<void, std::string> resetEmergencyStop()
+    {
+        auto res = mManager.disable(std::string(subsystems::kEmergencyStop));
+        if (!res)
+        {
+            mEvents.onSubsystemError.emit(subsystems::kEmergencyStop, res.error());
         }
         return res;
     }
@@ -218,19 +302,6 @@ public:
     }
 
     /**
-     * @brief Disables EmergencyStop, lifting the Preempts latch on all flight modes.
-     *
-     * Must be called as part of the emergency reset sequence before flight modes
-     * can be re-enabled. Safe to call if EmergencyStop is already disabled (no-op).
-     *
-     * @return Expected<void> on success, or error string.
-     */
-    [[nodiscard]] fat_p::Expected<void, std::string> resetEmergencyStop()
-    {
-        return mManager.disable(std::string(subsystems::kEmergencyStop));
-    }
-
-    /**
      * @brief Returns any currently active flight mode name, or empty string if none.
      */
     [[nodiscard]] std::string activeFlightMode() const
@@ -281,6 +352,22 @@ private:
         {
             throw std::runtime_error(std::string(context) + ": " + res.error());
         }
+    }
+
+    // Returns true if name is one of the six flight mode constants.
+    // Used by the A2 EmergencyStop latch guard in enableSubsystem().
+    static bool isFlightMode(std::string_view name)
+    {
+        using namespace drone::subsystems;
+
+        static constexpr const char* kModes[] = {
+            kManual, kStabilize, kAltHold, kPosHold, kAutonomous, kRTL
+        };
+        for (const char* mode : kModes)
+        {
+            if (name == mode) { return true; }
+        }
+        return false;
     }
 
     void registerSubsystems()
@@ -363,14 +450,9 @@ private:
         requireOk(mManager.addRelationship(kRTL,        FR::Requires, kBarometer), "RTL->Barometer");
         requireOk(mManager.addRelationship(kRTL,        FR::Requires, kGPS),       "RTL->GPS");
 
-        // EmergencyStop preempts all flight modes.
-        // Preempts = authoritative shutdown: enabling EmergencyStop forcibly disables
-        // the active flight mode (and its reverse-dependency closure) and latches
-        // inhibit so no flight mode can re-enable while EmergencyStop is active.
-        for (const char* mode : {kManual, kStabilize, kAltHold, kPosHold, kAutonomous, kRTL})
-        {
-            requireOk(mManager.addRelationship(kEmergencyStop, FR::Preempts, mode), "EmergencyStop preempts mode");
-        }
+        // EmergencyStop has no Preempts edges. Shutdown is handled at call time by
+        // triggerEmergencyStop() -> forceExclusive(), which atomically clears all feature
+        // states before enabling EmergencyStop. The re-enable latch lives in enableSubsystem().
     }
 
     void registerGroups()

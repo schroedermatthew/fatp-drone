@@ -4,14 +4,20 @@
  *
  * Tests cover: feature registration, dependency auto-enabling (Requires cascade),
  * mutual exclusion, implication cascade, conflict enforcement, arming validation,
- * emergency stop conflicts, independent sensors, RTL, Failsafe, adversarial inputs,
- * EmergencyStop latch coverage across all modes, and stress/fuzz operations.
+ * emergency stop (forceExclusive + A2 latch), independent sensors, RTL, Failsafe,
+ * adversarial inputs, EmergencyStop latch coverage across all modes, switchFlightMode
+ * atomic semantics, and stress/fuzz operations.
  *
  * Key FeatureManager semantics reflected in tests:
  * - Requires: enabling A auto-enables all required features transitively.
  * - Implies:  enabling A also auto-enables implied features.
  * - MutuallyExclusive / Conflicts: enabling A fails if a conflicting feature is already on.
- * - Preempts: enabling A force-disables B, cascades reverse deps, and latches inhibit.
+ * - forceExclusive: blanks ALL desiredStates to false, then enables the target feature.
+ *   No ME constraint can block it. Used by triggerEmergencyStop().
+ * - replace(): atomically disables 'from' and enables 'to' within one lock.
+ *   Used by switchFlightMode() when a mode is already active.
+ * - EmergencyStop latch (A2): enableSubsystem() rejects any flight mode while
+ *   EmergencyStop is enabled. Cleared by resetEmergencyStop().
  */
 /*
 FATP_META:
@@ -160,23 +166,68 @@ FATP_TEST_CASE(two_flight_modes_cannot_coexist)
 
 FATP_TEST_CASE(emergency_stop_preempts_active_flight_mode)
 {
+    // triggerEmergencyStop uses forceExclusive: blanks all states, enables EmergencyStop.
+    // The A2 latch in enableSubsystem then blocks any flight mode re-enable.
     Fixture f;
     (void)f.mgr.enableSubsystem(kManual);
-    auto res = f.mgr.enableSubsystem(kEmergencyStop);
-    FATP_ASSERT_TRUE(res.has_value(),                 "EmergencyStop Preempts must succeed while Manual is active");
-    FATP_ASSERT_TRUE(f.mgr.isEnabled(kEmergencyStop), "EmergencyStop should be enabled");
-    FATP_ASSERT_FALSE(f.mgr.isEnabled(kManual),       "Manual should be force-disabled by Preempts cascade");
+    auto res = f.mgr.triggerEmergencyStop();
+    FATP_ASSERT_TRUE(res.has_value(),                  "triggerEmergencyStop must succeed while Manual is active");
+    FATP_ASSERT_TRUE(f.mgr.isEnabled(kEmergencyStop),  "EmergencyStop should be enabled");
+    FATP_ASSERT_FALSE(f.mgr.isEnabled(kManual),        "Manual should be force-disabled by forceExclusive");
     auto reEnable = f.mgr.enableSubsystem(kManual);
-    FATP_ASSERT_FALSE(reEnable.has_value(), "Manual must not re-enable while EmergencyStop is active");
+    FATP_ASSERT_FALSE(reEnable.has_value(),            "Manual must not re-enable while EmergencyStop is active (A2 latch)");
     return true;
 }
 
 FATP_TEST_CASE(emergency_stop_when_no_flight_mode)
 {
     Fixture f;
-    auto res = f.mgr.enableSubsystem(kEmergencyStop);
-    FATP_ASSERT_TRUE(res.has_value(), "EmergencyStop should succeed with no active flight mode");
+    auto res = f.mgr.triggerEmergencyStop();
+    FATP_ASSERT_TRUE(res.has_value(), "triggerEmergencyStop should succeed with no active flight mode");
     FATP_ASSERT_TRUE(f.mgr.isEnabled(kEmergencyStop), "EmergencyStop should be enabled");
+    return true;
+}
+
+FATP_TEST_CASE(emergency_stop_reset_clears_latch)
+{
+    // resetEmergencyStop disables EmergencyStop; flight modes can be re-enabled after.
+    Fixture f;
+    (void)f.mgr.enableSubsystem(kManual);
+    (void)f.mgr.triggerEmergencyStop();
+    FATP_ASSERT_FALSE(f.mgr.enableSubsystem(kManual).has_value(),
+                      "Manual blocked while EmergencyStop is latched");
+
+    auto clear = f.mgr.resetEmergencyStop();
+    FATP_ASSERT_TRUE(clear.has_value(),                "resetEmergencyStop should succeed");
+    FATP_ASSERT_FALSE(f.mgr.isEnabled(kEmergencyStop), "EmergencyStop should be disabled after reset");
+    FATP_ASSERT_TRUE(f.mgr.enableSubsystem(kManual).has_value(),
+                     "Manual should be re-enable-able after latch cleared");
+    return true;
+}
+
+FATP_TEST_CASE(emergency_stop_force_exclusive_clears_all_sensors)
+{
+    // forceExclusive blanks ALL desiredStates before enabling EmergencyStop.
+    // All auto-enabled sensors (GPS, Datalink, CollisionAvoidance, IMU, Barometer)
+    // are cleared — unlike Preempts which only cascaded the reverse-dep closure.
+    Fixture f;
+    (void)f.mgr.enableSubsystem(kAutonomous);
+    FATP_ASSERT_TRUE(f.mgr.isEnabled(kAutonomous),     "Autonomous enabled");
+    FATP_ASSERT_TRUE(f.mgr.isEnabled(kGPS),            "GPS auto-enabled");
+    FATP_ASSERT_TRUE(f.mgr.isEnabled(kDatalink),       "Datalink auto-enabled");
+    FATP_ASSERT_TRUE(f.mgr.isEnabled(kCollisionAvoid), "CollisionAvoidance auto-enabled");
+    FATP_ASSERT_TRUE(f.mgr.isEnabled(kIMU),            "IMU auto-enabled");
+    FATP_ASSERT_TRUE(f.mgr.isEnabled(kBarometer),      "Barometer auto-enabled");
+
+    (void)f.mgr.triggerEmergencyStop();
+
+    FATP_ASSERT_TRUE(f.mgr.isEnabled(kEmergencyStop),   "EmergencyStop on");
+    FATP_ASSERT_FALSE(f.mgr.isEnabled(kAutonomous),     "Autonomous cleared");
+    FATP_ASSERT_FALSE(f.mgr.isEnabled(kGPS),            "GPS cleared");
+    FATP_ASSERT_FALSE(f.mgr.isEnabled(kDatalink),       "Datalink cleared");
+    FATP_ASSERT_FALSE(f.mgr.isEnabled(kCollisionAvoid), "CollisionAvoidance cleared");
+    FATP_ASSERT_FALSE(f.mgr.isEnabled(kIMU),            "IMU cleared");
+    FATP_ASSERT_FALSE(f.mgr.isEnabled(kBarometer),      "Barometer cleared");
     return true;
 }
 
@@ -626,6 +677,51 @@ FATP_TEST_CASE(stress_flight_mode_cycle)
 
 } // namespace fat_p::testing::subsystemmanager
 
+namespace fat_p::testing::subsystemmanager
+{
+
+// ============================================================================
+// switchFlightMode (Option B — replace()-based atomic mode transition)
+// ============================================================================
+
+FATP_TEST_CASE(switch_flight_mode_atomic)
+{
+    // switchFlightMode(Stabilize -> PosHold):
+    // Stabilize disabled, PosHold enabled, GPS added (required by PosHold),
+    // IMU + Barometer preserved (shared by both — replace() keeps them in desiredStates).
+    Fixture f;
+    (void)f.mgr.enableSubsystem(kStabilize);
+    FATP_ASSERT_TRUE(f.mgr.isEnabled(kStabilize), "Stabilize should be on");
+    FATP_ASSERT_TRUE(f.mgr.isEnabled(kIMU),       "IMU auto-enabled by Stabilize");
+    FATP_ASSERT_TRUE(f.mgr.isEnabled(kBarometer), "Barometer auto-enabled by Stabilize");
+    FATP_ASSERT_FALSE(f.mgr.isEnabled(kGPS),      "GPS not yet enabled");
+
+    auto res = f.mgr.switchFlightMode(kPosHold);
+    FATP_ASSERT_TRUE(res.has_value(),               "switchFlightMode to PosHold should succeed");
+    FATP_ASSERT_FALSE(f.mgr.isEnabled(kStabilize),  "Stabilize should be disabled after switch");
+    FATP_ASSERT_TRUE(f.mgr.isEnabled(kPosHold),     "PosHold should be enabled");
+    FATP_ASSERT_TRUE(f.mgr.isEnabled(kGPS),         "GPS auto-required by PosHold");
+    FATP_ASSERT_TRUE(f.mgr.isEnabled(kIMU),         "IMU preserved across atomic swap");
+    FATP_ASSERT_TRUE(f.mgr.isEnabled(kBarometer),   "Barometer preserved across atomic swap");
+    FATP_ASSERT_EQ(f.mgr.activeFlightMode(), std::string(kPosHold),
+                   "Active mode should be PosHold after switch");
+    return true;
+}
+
+FATP_TEST_CASE(switch_flight_mode_from_no_active_mode)
+{
+    // switchFlightMode with no active mode falls back to plain enableSubsystem.
+    Fixture f;
+    FATP_ASSERT_TRUE(f.mgr.activeFlightMode().empty(), "No active mode initially");
+    auto res = f.mgr.switchFlightMode(kManual);
+    FATP_ASSERT_TRUE(res.has_value(),            "switchFlightMode from no active mode should succeed");
+    FATP_ASSERT_TRUE(f.mgr.isEnabled(kManual),   "Manual should be enabled");
+    FATP_ASSERT_EQ(f.mgr.activeFlightMode(), std::string(kManual), "Active mode should be Manual");
+    return true;
+}
+
+} // namespace fat_p::testing::subsystemmanager
+
 namespace fat_p::testing
 {
 
@@ -647,6 +743,8 @@ bool test_SubsystemManager()
     FATP_RUN_TEST_NS(runner, subsystemmanager, two_flight_modes_cannot_coexist);
     FATP_RUN_TEST_NS(runner, subsystemmanager, emergency_stop_preempts_active_flight_mode);
     FATP_RUN_TEST_NS(runner, subsystemmanager, emergency_stop_when_no_flight_mode);
+    FATP_RUN_TEST_NS(runner, subsystemmanager, emergency_stop_reset_clears_latch);
+    FATP_RUN_TEST_NS(runner, subsystemmanager, emergency_stop_force_exclusive_clears_all_sensors);
     FATP_RUN_TEST_NS(runner, subsystemmanager, disable_dependency_blocks_if_dependent_enabled);
     FATP_RUN_TEST_NS(runner, subsystemmanager, validate_arming_readiness_missing_subsystems);
     FATP_RUN_TEST_NS(runner, subsystemmanager, validate_arming_readiness_full);
@@ -677,6 +775,10 @@ bool test_SubsystemManager()
     FATP_RUN_TEST_NS(runner, subsystemmanager, adversarial_emergency_stop_latch_covers_all_modes);
     FATP_RUN_TEST_NS(runner, subsystemmanager, adversarial_validate_arming_readiness_each_missing_subsystem);
     FATP_RUN_TEST_NS(runner, subsystemmanager, adversarial_error_event_fired_on_conflict);
+
+    // switchFlightMode (Option B)
+    FATP_RUN_TEST_NS(runner, subsystemmanager, switch_flight_mode_atomic);
+    FATP_RUN_TEST_NS(runner, subsystemmanager, switch_flight_mode_from_no_active_mode);
 
     // Stress / fuzz
     FATP_RUN_TEST_NS(runner, subsystemmanager, stress_repeated_enable_disable_independent_sensors);

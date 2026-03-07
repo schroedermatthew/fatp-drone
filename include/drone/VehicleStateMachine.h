@@ -409,7 +409,11 @@ public:
     /**
      * @brief Triggers emergency state unconditionally (from Armed, Flying, or Landing).
      *
-     * No guard — emergency is always available. Emits onSafetyAlert.
+     * Calls SubsystemManager::triggerEmergencyStop() before entering EmergencyState,
+     * atomically clearing all subsystem state and enabling EmergencyStop. The SM
+     * transition proceeds even if triggerEmergencyStop() returns an error, since
+     * safety state takes precedence; the subsystem error is surfaced via onSubsystemError
+     * (emitted inside triggerEmergencyStop).
      *
      * @param reason Human-readable description of the emergency trigger.
      * @return Expected<void> on success, or error string if transition is invalid
@@ -422,6 +426,10 @@ public:
             return reject("emergency", "already in terminal state");
         }
 
+        // Atomically clear all subsystem state. Failure is unexpected given forceExclusive
+        // semantics, but we transition to Emergency regardless — safety state takes precedence.
+        (void)mContext.subsystems.triggerEmergencyStop();
+
         mContext.events.onSafetyAlert.emit(reason);
         mSM.transition<EmergencyState>();
         return {};
@@ -430,7 +438,12 @@ public:
     /**
      * @brief Resets from Emergency to Preflight after operator acknowledgement.
      *
-     * @return Expected<void> on success, or error string if not in Emergency.
+     * Calls SubsystemManager::resetEmergencyStop() to clear the EmergencyStop latch
+     * before transitioning. Returns an error if the clear fails so the operator
+     * knows the latch was not released and re-arming would still be blocked.
+     *
+     * @return Expected<void> on success, or error string if not in Emergency or
+     *         if the EmergencyStop latch cannot be cleared.
      */
     [[nodiscard]] fat_p::Expected<void, std::string> requestReset()
     {
@@ -439,12 +452,10 @@ public:
             return reject("reset", "must be in Emergency state");
         }
 
-        // Disable EmergencyStop before transitioning so the Preempts latch is
-        // lifted and flight modes are usable again after the reset completes.
-        auto clearResult = mContext.subsystems.resetEmergencyStop();
-        if (!clearResult)
+        auto clear = mContext.subsystems.resetEmergencyStop();
+        if (!clear)
         {
-            return reject("reset", "failed to clear EmergencyStop: " + clearResult.error());
+            return reject("reset", "failed to clear EmergencyStop: " + clear.error());
         }
 
         mSM.transition<PreflightState>();
