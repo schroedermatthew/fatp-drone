@@ -298,6 +298,7 @@ FATP_TEST_CASE(emergency_land_reset_clears_latch_and_power)
 }
 
 
+FATP_TEST_CASE(disable_dependency_blocks_if_dependent_enabled)
 {
     Fixture f;
     (void)f.mgr.enableSubsystem(kStabilize);
