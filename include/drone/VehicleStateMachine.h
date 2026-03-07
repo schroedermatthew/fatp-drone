@@ -409,11 +409,23 @@ public:
     /**
      * @brief Triggers emergency state unconditionally (from Armed, Flying, or Landing).
      *
-     * Calls SubsystemManager::triggerEmergencyStop() before entering EmergencyState,
-     * atomically clearing all subsystem state and enabling EmergencyStop. The SM
-     * transition proceeds even if triggerEmergencyStop() returns an error, since
-     * safety state takes precedence; the subsystem error is surfaced via onSubsystemError
-     * (emitted inside triggerEmergencyStop).
+     * Routes to one of two SubsystemManager paths depending on whether the vehicle
+     * is airborne:
+     *
+     *   - Armed (on ground): calls triggerEmergencyStop() — full motor kill via
+     *     forceExclusive(). Safe because the vehicle is not airborne.
+     *
+     *   - Flying or Landing (airborne): calls triggerEmergencyLand() — forceExclusive()
+     *     sets the EmergencyStop latch and clears flight modes, then the power chain
+     *     (BatteryMonitor, ESC, MotorMix) is re-enabled so motors stay live for a
+     *     controlled descent. The operator or autopilot must command the descent;
+     *     this method only sets the safety state.
+     *
+     * In both cases the EmergencyStop A2 latch is active after this call, blocking
+     * any flight mode re-enable until requestReset() is called.
+     *
+     * The SM transition proceeds even if the subsystem call returns an error, since
+     * safety state takes precedence; errors are surfaced via onSubsystemError.
      *
      * @param reason Human-readable description of the emergency trigger.
      * @return Expected<void> on success, or error string if transition is invalid
@@ -426,9 +438,15 @@ public:
             return reject("emergency", "already in terminal state");
         }
 
-        // Atomically clear all subsystem state. Failure is unexpected given forceExclusive
-        // semantics, but we transition to Emergency regardless — safety state takes precedence.
-        (void)mContext.subsystems.triggerEmergencyStop();
+        // Route: airborne states keep motors live; ground state cuts everything.
+        if (isFlying() || isLanding())
+        {
+            (void)mContext.subsystems.triggerEmergencyLand();
+        }
+        else
+        {
+            (void)mContext.subsystems.triggerEmergencyStop();
+        }
 
         mContext.events.onSafetyAlert.emit(reason);
         mSM.transition<EmergencyState>();

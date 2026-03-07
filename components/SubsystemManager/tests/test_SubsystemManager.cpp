@@ -231,7 +231,73 @@ FATP_TEST_CASE(emergency_stop_force_exclusive_clears_all_sensors)
     return true;
 }
 
-FATP_TEST_CASE(disable_dependency_blocks_if_dependent_enabled)
+FATP_TEST_CASE(emergency_land_keeps_power_chain)
+{
+    // triggerEmergencyLand: forceExclusive sets the latch then re-enables the power
+    // chain so motors stay live. Flight modes and sensors remain disabled.
+    Fixture f;
+    (void)f.mgr.enableSubsystem(kStabilize); // auto-enables IMU, Barometer
+    FATP_ASSERT_TRUE(f.mgr.isEnabled(kStabilize),  "Stabilize enabled before land");
+    FATP_ASSERT_TRUE(f.mgr.isEnabled(kIMU),        "IMU auto-enabled");
+    FATP_ASSERT_TRUE(f.mgr.isEnabled(kBarometer),  "Barometer auto-enabled");
+
+    auto res = f.mgr.triggerEmergencyLand();
+    FATP_ASSERT_TRUE(res.has_value(),                    "triggerEmergencyLand must succeed");
+    FATP_ASSERT_TRUE(f.mgr.isEnabled(kEmergencyStop),    "EmergencyStop latched");
+    FATP_ASSERT_FALSE(f.mgr.isEnabled(kStabilize),       "Stabilize cleared by forceExclusive");
+    FATP_ASSERT_FALSE(f.mgr.isEnabled(kIMU),             "IMU cleared by forceExclusive");
+    FATP_ASSERT_FALSE(f.mgr.isEnabled(kBarometer),       "Barometer cleared by forceExclusive");
+    // Power chain must be live for motors
+    FATP_ASSERT_TRUE(f.mgr.isEnabled(kBatteryMonitor),   "BatteryMonitor re-enabled for descent");
+    FATP_ASSERT_TRUE(f.mgr.isEnabled(kESC),              "ESC re-enabled for descent");
+    FATP_ASSERT_TRUE(f.mgr.isEnabled(kMotorMix),         "MotorMix re-enabled for descent");
+    return true;
+}
+
+FATP_TEST_CASE(emergency_land_a2_latch_still_blocks_flight_modes)
+{
+    // triggerEmergencyLand sets the same A2 latch as triggerEmergencyStop.
+    // Flight modes must stay blocked even though motors are live.
+    Fixture f;
+    (void)f.mgr.enableSubsystem(kManual);
+    (void)f.mgr.triggerEmergencyLand();
+
+    FATP_ASSERT_TRUE(f.mgr.isEnabled(kEmergencyStop), "EmergencyStop latched");
+    FATP_ASSERT_TRUE(f.mgr.isEnabled(kMotorMix),      "MotorMix live after land trigger");
+
+    static constexpr const char* kAllModes[] = {
+        kManual, kStabilize, kAltHold, kPosHold, kAutonomous, kRTL
+    };
+    for (const char* mode : kAllModes)
+    {
+        FATP_ASSERT_FALSE(f.mgr.enableSubsystem(mode).has_value(),
+                          (std::string("Mode ") + mode + " must be inhibited while EmergencyStop is latched").c_str());
+    }
+    return true;
+}
+
+FATP_TEST_CASE(emergency_land_reset_clears_latch_and_power)
+{
+    // After triggerEmergencyLand + resetEmergencyStop, the A2 latch is cleared.
+    // Power chain state is unchanged by reset (caller decides what to restore).
+    Fixture f;
+    (void)f.mgr.enableSubsystem(kManual);
+    (void)f.mgr.triggerEmergencyLand();
+
+    FATP_ASSERT_TRUE(f.mgr.isEnabled(kMotorMix),      "MotorMix live during emergency land");
+
+    auto clear = f.mgr.resetEmergencyStop();
+    FATP_ASSERT_TRUE(clear.has_value(),                 "resetEmergencyStop should succeed");
+    FATP_ASSERT_FALSE(f.mgr.isEnabled(kEmergencyStop),  "EmergencyStop cleared after reset");
+    // Power chain was not touched by reset — still enabled
+    FATP_ASSERT_TRUE(f.mgr.isEnabled(kMotorMix),        "MotorMix still enabled after reset");
+    // Flight modes can be re-enabled after latch cleared
+    FATP_ASSERT_TRUE(f.mgr.enableSubsystem(kManual).has_value(),
+                     "Manual re-enable-able after latch cleared");
+    return true;
+}
+
+
 {
     Fixture f;
     (void)f.mgr.enableSubsystem(kStabilize);
@@ -745,6 +811,9 @@ bool test_SubsystemManager()
     FATP_RUN_TEST_NS(runner, subsystemmanager, emergency_stop_when_no_flight_mode);
     FATP_RUN_TEST_NS(runner, subsystemmanager, emergency_stop_reset_clears_latch);
     FATP_RUN_TEST_NS(runner, subsystemmanager, emergency_stop_force_exclusive_clears_all_sensors);
+    FATP_RUN_TEST_NS(runner, subsystemmanager, emergency_land_keeps_power_chain);
+    FATP_RUN_TEST_NS(runner, subsystemmanager, emergency_land_a2_latch_still_blocks_flight_modes);
+    FATP_RUN_TEST_NS(runner, subsystemmanager, emergency_land_reset_clears_latch_and_power);
     FATP_RUN_TEST_NS(runner, subsystemmanager, disable_dependency_blocks_if_dependent_enabled);
     FATP_RUN_TEST_NS(runner, subsystemmanager, validate_arming_readiness_missing_subsystems);
     FATP_RUN_TEST_NS(runner, subsystemmanager, validate_arming_readiness_full);

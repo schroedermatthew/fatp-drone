@@ -406,10 +406,72 @@ FATP_TEST_CASE(reset_clears_emergency_stop_latch)
     return true;
 }
 
+FATP_TEST_CASE(emergency_from_armed_kills_motors)
+{
+    // Armed is on-ground: requestEmergency routes to triggerEmergencyStop (kill path).
+    // Power chain must be fully cleared.
+    Fixture f;
+    f.enableArmingAndManual();
+    FATP_ASSERT_TRUE(f.sm.requestArm().has_value(), "arm");
+    FATP_ASSERT_TRUE(f.mgr.isEnabled(kMotorMix),   "MotorMix enabled before emergency");
+
+    FATP_ASSERT_TRUE(f.sm.requestEmergency("ground test").has_value(), "emergency from armed");
+    FATP_ASSERT_TRUE(f.sm.isEmergency(),                               "in Emergency state");
+    FATP_ASSERT_TRUE(f.mgr.isEnabled(kEmergencyStop),                  "EmergencyStop latched");
+    // Kill path: power chain must be cleared
+    FATP_ASSERT_FALSE(f.mgr.isEnabled(kMotorMix),     "MotorMix killed (on ground, safe to cut)");
+    FATP_ASSERT_FALSE(f.mgr.isEnabled(kESC),          "ESC killed");
+    FATP_ASSERT_FALSE(f.mgr.isEnabled(kBatteryMonitor),"BatteryMonitor killed");
+    return true;
+}
+
+FATP_TEST_CASE(emergency_from_flying_keeps_motors)
+{
+    // Flying is airborne: requestEmergency routes to triggerEmergencyLand.
+    // Power chain must stay live; flight modes and sensors must be cleared.
+    Fixture f;
+    f.goFlying();
+    FATP_ASSERT_TRUE(f.mgr.isEnabled(kMotorMix),  "MotorMix enabled in flight");
+    FATP_ASSERT_TRUE(f.mgr.isEnabled(kManual),    "Manual flight mode active");
+
+    FATP_ASSERT_TRUE(f.sm.requestEmergency("sensor failure").has_value(), "emergency from flying");
+    FATP_ASSERT_TRUE(f.sm.isEmergency(),                                  "in Emergency state");
+    FATP_ASSERT_TRUE(f.mgr.isEnabled(kEmergencyStop),                     "EmergencyStop latched");
+    // Land path: power chain must stay live
+    FATP_ASSERT_TRUE(f.mgr.isEnabled(kMotorMix),      "MotorMix live for descent");
+    FATP_ASSERT_TRUE(f.mgr.isEnabled(kESC),           "ESC live for descent");
+    FATP_ASSERT_TRUE(f.mgr.isEnabled(kBatteryMonitor),"BatteryMonitor live for descent");
+    // Flight mode must be cleared
+    FATP_ASSERT_FALSE(f.mgr.isEnabled(kManual),       "Manual cleared by forceExclusive");
+    return true;
+}
+
+FATP_TEST_CASE(emergency_land_recovery_full_cycle)
+{
+    // Full airborne emergency recovery: fly → emergency (land path) → reset → re-arm → fly.
+    Fixture f;
+    f.goFlying();
+
+    FATP_ASSERT_TRUE(f.sm.requestEmergency("nav error").has_value(), "emergency from flying");
+    FATP_ASSERT_TRUE(f.mgr.isEnabled(kMotorMix),  "motors live during land emergency");
+
+    FATP_ASSERT_TRUE(f.sm.requestReset().has_value(),  "reset");
+    FATP_ASSERT_TRUE(f.sm.isPreflight(),               "back in Preflight");
+    FATP_ASSERT_FALSE(f.mgr.isEnabled(kEmergencyStop), "latch cleared");
+
+    // Restore full arming set (forceExclusive cleared flight modes and sensors)
+    f.enableArmingAndManual();
+    FATP_ASSERT_TRUE(f.sm.requestArm().has_value(),     "re-arm after land emergency");
+    FATP_ASSERT_TRUE(f.sm.requestTakeoff().has_value(), "takeoff after re-arm");
+    FATP_ASSERT_TRUE(f.sm.isFlying(),                   "flying after full land recovery");
+    return true;
+}
+
 // ============================================================================
 // Adversarial — invalid transitions from every wrong state
 // (merged from components/VehicleStateMachine/test_VehicleStateMachine.cpp)
 // ============================================================================
+
 
 FATP_TEST_CASE(adversarial_disarm_fails_from_flying)
 {
@@ -649,6 +711,9 @@ bool test_VehicleStateMachine()
 
     // Bug fix: reset clears EmergencyStop latch (arm -> emergency -> reset -> re-arm -> takeoff)
     FATP_RUN_TEST_NS(runner, vehiclestatemachine, reset_clears_emergency_stop_latch);
+    FATP_RUN_TEST_NS(runner, vehiclestatemachine, emergency_from_armed_kills_motors);
+    FATP_RUN_TEST_NS(runner, vehiclestatemachine, emergency_from_flying_keeps_motors);
+    FATP_RUN_TEST_NS(runner, vehiclestatemachine, emergency_land_recovery_full_cycle);
 
     // Adversarial — invalid transitions from every wrong state
     FATP_RUN_TEST_NS(runner, vehiclestatemachine, adversarial_disarm_fails_from_flying);

@@ -31,11 +31,11 @@ The included drone demo shows FeatureManager driving a real control-systems prob
 
 The key point: **every dependency and constraint is declared explicitly in code, once.** There is no implicit knowledge scattered across enable/disable call sites. The graph is the source of truth; FeatureManager enforces it everywhere.
 
-### Try it live — WebAssembly simulator
+### Try it — WebAssembly simulator
 
-The drone demo compiles to WebAssembly and runs entirely in the browser. No server, no install — the same C++ binary that passes the CI test suite, served as a single HTML file.
+The drone demo compiles to WebAssembly and runs entirely in the browser. No server, no install — the same C++ binary that passes the CI test suite, packed into a single HTML file.
 
-**[→ Open the live simulator](https://schroedermatthew.github.io/fatp-drone/)**
+**[→ Download fatp-drone.html](app/fatp-drone_gui/fatp-drone.html)** — save the file, then open it locally in any browser. No upload, no server needed.
 
 The simulator exposes the full `CommandParser::execute()` interface with a GUI that explains the system's rules as you interact with them:
 

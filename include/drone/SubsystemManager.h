@@ -47,9 +47,12 @@ FATP_META:
  * - ESC        Requires  BatteryMonitor
  * - Failsafe   Requires  BatteryMonitor, RCReceiver
  * - FlightModes group: MutuallyExclusive (Manual, Stabilize, AltHold, PosHold, Autonomous, RTL)
- * - EmergencyStop: triggered via triggerEmergencyStop(), which calls forceExclusive() to
- *   atomically clear all feature states and enable EmergencyStop. Re-enabling any flight
- *   mode while EmergencyStop is active is blocked by a guard in enableSubsystem().
+ * - EmergencyStop: two trigger paths, both set the A2 latch (flight modes blocked until reset):
+ *     triggerEmergencyStop() — kill path: forceExclusive(), blanks all features including
+ *       motors. Safe when already on the ground (Armed state).
+ *     triggerEmergencyLand() — land path: forceExclusive() then re-enables the power chain
+ *       (BatteryMonitor, ESC, MotorMix) so motors stay live for a controlled descent.
+ *       Used when airborne (Flying or Landing states).
  *   Call resetEmergencyStop() (e.g. from requestReset()) to clear the latch.
  *
  * @see fat_p::feature::FeatureManager
@@ -182,13 +185,12 @@ public:
     }
 
     /**
-     * @brief Triggers an emergency stop by atomically clearing all feature states
-     *        and enabling EmergencyStop.
+     * @brief Kill-path emergency stop. Blanks all subsystem state including motors.
      *
-     * Uses forceExclusive(), which blanks all desiredStates to false before enabling
-     * EmergencyStop and its Requires closure. No MutuallyExclusive or Conflicts
-     * constraint can block it. All sensors, flight modes, and other subsystems are
-     * disabled as a side effect.
+     * Uses forceExclusive(), which atomically clears all desiredStates and enables
+     * EmergencyStop. All sensors, flight modes, and power chain subsystems are
+     * disabled as a side effect. Use when the vehicle is on the ground (Armed state)
+     * where cutting motor power is safe.
      *
      * After this call, no flight mode can be re-enabled until resetEmergencyStop()
      * is called (enforced by the A2 guard in enableSubsystem()).
@@ -203,6 +205,49 @@ public:
             mEvents.onSubsystemError.emit(subsystems::kEmergencyStop, res.error());
         }
         return res;
+    }
+
+    /**
+     * @brief Land-path emergency stop. Disables flight modes but keeps motors live.
+     *
+     * Uses forceExclusive() to atomically clear all feature state and enable
+     * EmergencyStop (same A2 latch as the kill path), then immediately re-enables
+     * the power chain (BatteryMonitor → ESC → MotorMix) so the drone can execute
+     * a controlled descent. Use when airborne (Flying or Landing states).
+     *
+     * The A2 latch in enableSubsystem() still blocks any flight mode from being
+     * re-enabled until resetEmergencyStop() is called.
+     *
+     * @return Expected<void> on success, or error string from forceExclusive or
+     *         power chain re-enable. On partial failure the EmergencyStop latch is
+     *         still active; the error is surfaced via onSubsystemError.
+     */
+    [[nodiscard]] fat_p::Expected<void, std::string> triggerEmergencyLand()
+    {
+        using namespace drone::subsystems;
+
+        // Step 1: forceExclusive sets the latch and clears everything (including motors).
+        auto res = mManager.forceExclusive(std::string(kEmergencyStop));
+        if (!res)
+        {
+            mEvents.onSubsystemError.emit(kEmergencyStop, res.error());
+            return res;
+        }
+
+        // Step 2: Re-enable the power chain so motors stay live for controlled descent.
+        // Enable in dependency order: BatteryMonitor first, then ESC (Requires BatteryMonitor),
+        // then MotorMix (Requires ESC). Failure here is unexpected but not fatal — the
+        // EmergencyStop latch is already set; surface the error and return it.
+        for (const char* name : {kBatteryMonitor, kESC, kMotorMix})
+        {
+            auto pw = mManager.enable(std::string(name));
+            if (!pw)
+            {
+                mEvents.onSubsystemError.emit(name, pw.error());
+                return pw;
+            }
+        }
+        return {};
     }
 
     /**
