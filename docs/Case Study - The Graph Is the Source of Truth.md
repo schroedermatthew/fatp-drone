@@ -3,8 +3,8 @@ doc_id: CS-FEATUREMANAGER-001
 doc_type: "Case Study"
 title: "The Graph Is the Source of Truth"
 fatp_components: ["FeatureManager"]
-topics: ["dependency cascade", "MutuallyExclusive constraints", "Preempts relationship", "test assumption failures", "AI-assisted development", "control systems safety", "graph-declared safety constraints"]
-constraints: ["Requires cascade invalidates test isolation assumptions", "MutuallyExclusive blocks chaining via Requires", "Preempts latch covers entire reverse-dependency closure", "test correctness depends on understanding the declared graph"]
+topics: ["dependency cascade", "MutuallyExclusive constraints", "forceExclusive e-stop", "test assumption failures", "AI-assisted development", "control systems safety", "graph-declared safety constraints"]
+constraints: ["Requires cascade invalidates test isolation assumptions", "MutuallyExclusive blocks chaining via Requires", "forceExclusive e-stop + A2 latch blocks flight mode re-enable until resetEmergencyStop() is called", "test correctness depends on understanding the declared graph"]
 cxx_standard: "C++20"
 build_modes: ["Debug", "Release"]
 last_verified: "2026-02-28"
@@ -24,7 +24,7 @@ status: "reviewed"
 - CI/CD configuration
 
 **Prerequisites:**
-- Familiarity with FeatureManager's `Requires`, `MutuallyExclusive`, and `Preempts` relationships
+- Familiarity with FeatureManager's `Requires`, `MutuallyExclusive`, and `forceExclusive` API
 - Understanding of dependency graph semantics (enabling A auto-enables B when A Requires B)
 - Basic C++ test structure
 
@@ -530,9 +530,9 @@ Rejected. Idempotent disable is the right specification for the reasons in the d
 
 The cascade skip-sets in `adversarial_validate_arming_readiness_each_missing_subsystem` are derived from the graph as declared in `registerRelationships()`. If a developer adds or removes a `Requires` edge involving the power chain (`BatteryMonitor`, `ESC`, `MotorMix`), the hard-coded skip-sets in the test become stale. The test will either start passing spuriously (cascade no longer fires) or failing in a new way. This is a known fragility: static skip-sets do not survive graph mutations. The mechanical checklist below includes a step for this.
 
-**What about the `Preempts` relationship?**
+**What about EmergencyStop?**
 
-`EmergencyStop` Preempts all six flight modes. The `Preempts` relationship force-disables the target and its entire reverse-dependency closure, then latches an inhibit that prevents the target from re-enabling while the Preempts source is active. An adversarial test that enables a flight mode, then enables EmergencyStop, must account for the fact that enabling EmergencyStop will also disable all sensors that were auto-enabled as dependencies of the flight mode — because disabling the flight mode clears its consumers, removing the Requires constraint that was keeping the sensors enabled. The `adversarial_emergency_stop_latch_covers_all_modes` test in the suite covers this correctly.
+`EmergencyStop` no longer uses `Preempts` graph edges. Instead, `triggerEmergencyStop()` calls `mManager.forceExclusive(kEmergencyStop)` — this blanks all desired states and enables EmergencyStop in one operation. An A2 latch in `enableSubsystem()` then blocks any flight mode from being re-enabled while EmergencyStop is active. To clear the latch, `resetEmergencyStop()` calls `mManager.disable(kEmergencyStop)`. An adversarial test that enables a flight mode, then triggers emergency stop, must account for the fact that `forceExclusive` will also disable all sensors that were auto-enabled as dependencies of the flight mode — because blanking desired states removes the Requires constraint that was keeping the sensors enabled. The `adversarial_emergency_stop_latch_covers_all_modes` test in the suite covers this correctly.
 
 ### Mechanical Audit Checklist
 
@@ -573,7 +573,7 @@ When asserting a return value from an operation on a disabled/never-enabled targ
 
 4. **Do not write tests that assert error return on idempotent operations without first confirming the specification.** Check the User Manual. If the spec says success, assert the postcondition.
 
-5. **Watch out for:** the `Preempts` latch. After `EmergencyStop` is enabled, it inhibits all flight modes even after sensors are re-enabled. A test that enables a flight mode after EmergencyStop fires without first resetting EmergencyStop will hit the latch and fail — correctly, because the latch is a safety property, not a bug.
+5. **Watch out for:** the emergency stop A2 latch. After `triggerEmergencyStop()` fires (via `forceExclusive`), `enableSubsystem()` rejects all flight modes until `resetEmergencyStop()` is called. A test that enables a flight mode after EmergencyStop fires without first calling `resetEmergencyStop()` will hit the latch and fail — correctly, because the latch is a safety property, not a bug.
 
 ---
 

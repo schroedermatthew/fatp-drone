@@ -4,7 +4,7 @@ A dependency-resolving feature flag system built on [FAT-P](https://github.com/s
 
 The premise: feature flags in real systems are not booleans. They have dependencies, implications, conflicts, and safety constraints. Tracking all of that by hand — checking whether enabling GPU rendering also enables the shader compiler, whether HDR conflicts with the old display mode, whether toggling a subsystem OFF would orphan everything that depended on it — is how you get bugs. FeatureManager makes it automatic, validated, and transactional.
 
-Five relationship types. Transitive dependency resolution. Cycle detection with path reporting. Observer pattern with RAII lifetime management. JSON round-trip serialization. GraphViz DOT export. Pluggable thread-safety policy. And a `Preempts` relationship built specifically for e-stop and override scenarios — enabling the source forcibly disables the target, cascades through its reverse-dependency closure, and latches inhibit so nothing can sneak back on.
+Five relationship types. Transitive dependency resolution. Cycle detection with path reporting. Observer pattern with RAII lifetime management. JSON round-trip serialization. GraphViz DOT export. Pluggable thread-safety policy. A `Preempts` relationship for override scenarios — enabling the source forcibly disables the target, cascades through its reverse-dependency closure, and latches inhibit so nothing can sneak back on. And a `forceExclusive` operation for e-stop semantics — blanks the entire feature state atomically before enabling the target, so no MutuallyExclusive or Conflicts constraint can block it.
 
 This component was built by an AI pair-programmer. The FAT-P development guidelines — covering code standards, naming conventions, test structure, benchmark methodology, CI workflow, documentation style, and AI operational behavior — were transferred from the parent library and edited to fit this project. The AI works from those adapted guidelines and produces code and tests to that standard from the start, rather than having a human retrofit compliance afterward. FeatureManager is the result: 44 passing tests, full JSON serialization, and a drone demo that exercises the complete feature graph under realistic safety constraints.
 
@@ -21,6 +21,7 @@ This component was built by an AI pair-programmer. The FAT-P development guideli
 | `Conflicts` | A and B cannot both be enabled. | Yes (auto) |
 | `MutuallyExclusive` | Group constraint — only one member can be enabled at a time. | Yes (auto) |
 | `Preempts` | Enabling A force-disables B and its entire reverse-dependency closure. Latches inhibit: B cannot re-enable while A is on. | No |
+| `forceExclusive(A)` | Blanks **all** feature states atomically, then enables A and its Requires/Implies closure. No constraint can block it. Used for e-stop semantics. | — |
 
 ---
 
@@ -100,12 +101,9 @@ void registerRelationships()
     requireOk(mManager.addRelationship(kRTL, FR::Requires, kBarometer), "RTL->Barometer");
     requireOk(mManager.addRelationship(kRTL, FR::Requires, kGPS),       "RTL->GPS");
 
-    // EmergencyStop preempts all flight modes — force-disables the active mode
-    // and latches inhibit so no flight mode can re-enable while it is active.
-    for (const char* mode : {kManual, kStabilize, kAltHold, kPosHold, kAutonomous, kRTL})
-    {
-        requireOk(mManager.addRelationship(kEmergencyStop, FR::Preempts, mode), "EmergencyStop preempts mode");
-    }
+    // EmergencyStop has no Preempts edges. Shutdown is handled at call time by
+    // triggerEmergencyStop() -> forceExclusive(), which atomically clears all feature
+    // states before enabling EmergencyStop. The re-enable latch lives in enableSubsystem().
 }
 
 void registerGroups()
@@ -131,7 +129,7 @@ void registerGroups()
 
 ### The graph rendered
 
-Exported via `mgr.exportDependencyGraph()` → `toDot()`, rendered by Graphviz. Solid edges: Requires. Dashed: Implies. Bold red: Preempts. Dotted: MutuallyExclusive.
+Exported via `mgr.exportDependencyGraph()` → `toDot()`, rendered by Graphviz. Solid edges: Requires. Dashed: Implies. Dotted: MutuallyExclusive. (`Preempts` edges are supported by FeatureManager but unused in this graph — EmergencyStop uses `forceExclusive()` instead.)
 
 ![Drone subsystem dependency graph](docs/graphviz.svg)
 
@@ -147,11 +145,11 @@ Exported via `mgr.exportDependencyGraph()` → `toDot()`, rendered by Graphviz. 
 > enable Stabilize
   Error: PosHold is mutually exclusive with Stabilize
 
-> enable EmergencyStop
-  PosHold disabled (Preempts cascade)
-  GPS, IMU, Barometer disabled (reverse-dependency closure)
+> emergency engine-failure
+  PosHold disabled
+  GPS, IMU, Barometer disabled
   EmergencyStop enabled
-  Latch active: no flight mode can re-enable
+  Latch active: no flight mode can re-enable until reset
 
 > takeoff
   Error: no flight mode is active
@@ -169,7 +167,7 @@ Vehicle lifecycle: `Preflight → Armed → Flying → Landing → Armed` (or `�
 
 ## Tests
 
-44 unit tests across logic, observer, serialization, and Preempts coverage. The drone demo adds 139 more across SubsystemManager (40), VehicleStateMachine (37), TelemetryLog (17), and DroneCore integration (45) suites. Each suite now includes adversarial wrong-state probes and stress/fuzz sequences.
+44 unit tests across logic, observer, serialization, and `forceExclusive` coverage. The drone demo adds 144 more across SubsystemManager (44), VehicleStateMachine (38), TelemetryLog (17), and DroneCore integration (45) suites. Each suite includes adversarial wrong-state probes and stress/fuzz sequences.
 
 ---
 

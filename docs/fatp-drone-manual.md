@@ -127,7 +127,7 @@ The big dark graph in the center shows the **live dependency map** of all featur
 | **— REQUIRES** (teal solid) | This feature won't work without that one |
 | **–– IMPLIES** (teal dashed) | Enabling this auto-enables that |
 | **== EXCLUDES** (red dashed) | These two features can't be active together |
-| **~~ PREEMPTS** (orange) | This feature overrides/suspends that one |
+> **Note:** EmergencyStop does not appear as a graph edge to flight modes. It uses `forceExclusive` — a programmatic override that blanks all active features and engages an A2 latch blocking flight mode re-enable until the emergency is reset. This happens in code, not as a visible graph edge.
 
 **Feature groups visible in the graph:**
 
