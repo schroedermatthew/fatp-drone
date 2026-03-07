@@ -505,7 +505,7 @@ FATP_TEST_CASE(adversarial_emergency_stop_latch_covers_all_modes)
     // EmergencyStop inhibit latch must cover ALL 6 modes, not just the active one.
     Fixture f;
     (void)f.mgr.enableSubsystem(kStabilize);
-    (void)f.mgr.enableSubsystem(kEmergencyStop);
+    (void)f.mgr.triggerEmergencyStop();
 
     FATP_ASSERT_TRUE(f.mgr.isEnabled(kEmergencyStop), "EmergencyStop should be on");
     FATP_ASSERT_FALSE(f.mgr.isEnabled(kStabilize),    "Stabilize force-disabled");

@@ -398,8 +398,8 @@ FATP_TEST_CASE(reset_clears_emergency_stop_latch)
     FATP_ASSERT_TRUE(f.sm.isPreflight(),                        "back in Preflight");
     FATP_ASSERT_FALSE(f.mgr.isEnabled(kEmergencyStop),          "EmergencyStop cleared after reset");
 
-    // Re-enable Manual (forceExclusive cleared it during emergency)
-    FATP_ASSERT_TRUE(f.mgr.enableSubsystem(kManual).has_value(),"re-enable Manual after latch clear");
+    // forceExclusive cleared all subsystems during emergency; restore full arming set before re-arm
+    f.enableArmingAndManual();
     FATP_ASSERT_TRUE(f.sm.requestArm().has_value(),             "re-arm after reset");
     FATP_ASSERT_TRUE(f.sm.requestTakeoff().has_value(),         "takeoff after re-arm");
     FATP_ASSERT_TRUE(f.sm.isFlying(),                           "flying after full recovery");
