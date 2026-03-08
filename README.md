@@ -6,9 +6,38 @@ The premise: feature flags in real systems are not booleans. They have dependenc
 
 Five relationship types. Transitive dependency resolution. Cycle detection with path reporting. Observer pattern with RAII lifetime management. JSON round-trip serialization. GraphViz DOT export. Pluggable thread-safety policy. A `Preempts` relationship for override scenarios — enabling the source forcibly disables the target, cascades through its reverse-dependency closure, and latches inhibit so nothing can sneak back on. And a `forceExclusive` operation for e-stop semantics — blanks the entire feature state atomically before enabling the target, so no MutuallyExclusive or Conflicts constraint can block it.
 
-This component was built by an AI pair-programmer. The FAT-P development guidelines — covering code standards, naming conventions, test structure, benchmark methodology, CI workflow, documentation style, and AI operational behavior — were transferred from the parent library and edited to fit this project. The AI works from those adapted guidelines and produces code and tests to that standard from the start, rather than having a human retrofit compliance afterward. FeatureManager is the result: 44 passing tests, full JSON serialization, and a drone demo that exercises the complete feature graph under realistic safety constraints.
-
 [![CI](https://github.com/schroedermatthew/fatp-drone/actions/workflows/fatp-drone.yml/badge.svg?event=push)](https://github.com/schroedermatthew/fatp-drone/actions/workflows/fatp-drone.yml)
+
+---
+
+## How it was built
+
+FeatureManager was designed and implemented by two AI models working collaboratively: Claude
+(Anthropic) and ChatGPT (OpenAI). No human wrote any of the code, tests, CI configuration, or
+documentation.
+
+The Fat-P development guidelines — covering coding standards, naming conventions, test
+structure, benchmark methodology, CI workflow, documentation style, and AI operational behavior
+— were transferred from the parent FAT-P library and adapted to this project. Both AI models
+worked from those guidelines throughout. The guidelines are AI-to-AI communication: written by
+AI instances to constrain future AI instances. The human who initiated the Fat-P project has
+never read them.
+
+This is not pair-programming in the human sense. It is two AI models with different strengths
+doing genuine cross-review: one proposes, the other challenges, the guidelines arbitrate. The
+output — 44 unit tests, 144 integration tests across the drone demo suites, a CI pipeline, a
+WebAssembly simulator, full documentation — was produced in a single session and was compliant
+with Fat-P standards from the start. Nothing was retrofitted.
+
+The distinction from the fatp-ecs project is the division of work: fatp-ecs was built
+autonomously by Claude alone, with adversarial AI review afterward. fatp-drone was built
+collaboratively from the start, with ChatGPT participating in design and review throughout
+rather than in a separate review pass.
+
+The human's role, as with the rest of the Fat-P project, is directional: accept, reject, flag.
+The architecture originated with the AI pair. The methodology originated in the guidelines.
+The guidelines originated with earlier AI instances that needed to leave instructions for later
+ones.
 
 ---
 
