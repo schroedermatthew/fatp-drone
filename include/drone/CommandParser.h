@@ -38,7 +38,9 @@ FATP_META:
  * Command set:
  * @code
  *   enable  <subsystem>   -- enable a named subsystem
+ *                            (EmergencyStop is reserved; use the emergency command)
  *   disable <subsystem>   -- disable a named subsystem
+ *                            (EmergencyStop is reserved; use the reset command)
  *   status                -- show all subsystem and vehicle state
  *   arm                   -- request arm transition
  *   disarm                -- request disarm transition
@@ -46,7 +48,7 @@ FATP_META:
  *   land                  -- request land transition
  *   landing_complete      -- signal that landing is finished (Landing -> Armed)
  *   disarm_after_landing  -- disarm directly from landing (Landing -> Preflight)
- *   emergency [reason]    -- trigger emergency stop
+ *   emergency [reason]    -- trigger emergency (stop on ground, land if airborne)
  *   reset                 -- reset from Emergency to Preflight
  *   log [n]               -- show last n telemetry entries (default 20)
  *   graph                 -- export GraphViz DOT to stdout
@@ -57,9 +59,11 @@ FATP_META:
  */
 
 #include "SubsystemManager.h"
+#include "Subsystems.h"
 #include "TelemetryLog.h"
 #include "VehicleStateMachine.h"
 
+#include <cctype>
 #include <sstream>
 #include <string>
 #include <string_view>
@@ -112,15 +116,28 @@ public:
     /**
      * @brief Parses and executes a single command line.
      *
-     * @param line Raw input line (will be trimmed internally).
+     * Leading and trailing whitespace is trimmed before parsing.
+     *
+     * @param line Raw input line (trimmed internally).
      * @return CommandResult with display string and quit flag.
      */
     [[nodiscard]] CommandResult execute(std::string_view line)
     {
+        // Trim leading whitespace so "   help" is equivalent to "help".
+        auto start = line.find_first_not_of(" \t");
+        if (start != std::string_view::npos)
+        {
+            line = line.substr(start);
+        }
+        else
+        {
+            line = {};
+        }
+
         std::string cmd;
         std::string arg;
 
-        // Split first token as command, rest as arg
+        // Split first token as command, rest as arg.
         auto pos = line.find_first_of(" \t");
         if (pos == std::string_view::npos)
         {
@@ -136,7 +153,7 @@ public:
             }
         }
 
-        // Normalize to lowercase
+        // Normalize to lowercase.
         for (char& c : cmd)
         {
             c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
@@ -175,7 +192,9 @@ public:
         return
             "Available commands:\n"
             "  enable  <subsystem>   -- enable a named subsystem\n"
+            "                          (EmergencyStop is reserved; use 'emergency')\n"
             "  disable <subsystem>   -- disable a named subsystem\n"
+            "                          (EmergencyStop is reserved; use 'reset')\n"
             "  status                -- show all subsystem and vehicle state\n"
             "  arm                   -- arm the vehicle (Preflight -> Armed)\n"
             "  disarm                -- disarm the vehicle (Armed -> Preflight)\n"
@@ -183,7 +202,7 @@ public:
             "  land                  -- land (Flying -> Landing)\n"
             "  landing_complete      -- signal landing complete (Landing -> Armed)\n"
             "  disarm_after_landing  -- disarm directly from landing (Landing -> Preflight)\n"
-            "  emergency [reason]    -- trigger emergency stop\n"
+            "  emergency [reason]    -- trigger emergency (stop on ground / land if airborne)\n"
             "  reset                 -- reset from Emergency to Preflight\n"
             "  log [n]               -- show last n telemetry entries (default 20)\n"
             "  graph                 -- export subsystem graph as GraphViz DOT\n"
@@ -196,12 +215,13 @@ public:
             "  Power:        BatteryMonitor, ESC, MotorMix\n"
             "  Comms:        RCReceiver, Telemetry, Datalink\n"
             "  FlightModes:  Manual, Stabilize, AltHold, PosHold, Autonomous, RTL\n"
-            "  Safety:       Geofence, Failsafe, CollisionAvoidance, EmergencyStop\n";
+            "  Safety:       Geofence, Failsafe, CollisionAvoidance\n"
+            "                (EmergencyStop managed via emergency/reset commands)\n";
     }
 
 private:
-    SubsystemManager&         mSubsystems;
-    VehicleStateMachine&      mSM;
+    SubsystemManager&          mSubsystems;
+    VehicleStateMachine&       mSM;
     TelemetryLog<LogCapacity>& mLog;
 
     // -------------------------------------------------------------------------
@@ -213,6 +233,17 @@ private:
         if (name.empty())
         {
             return {false, "Usage: enable <subsystem>"};
+        }
+
+        // EmergencyStop is a reserved safety feature managed exclusively through
+        // the 'emergency' command (triggerEmergencyStop / triggerEmergencyLand).
+        // Allowing raw enable would bypass the vehicle state machine's safety
+        // interlock and could leave the vehicle armed with an active emergency latch.
+        if (name == drone::subsystems::kEmergencyStop)
+        {
+            return {false,
+                "EmergencyStop is a reserved safety feature. "
+                "Use the 'emergency' command to trigger an emergency stop."};
         }
 
         auto res = mSubsystems.enableSubsystem(name);
@@ -228,6 +259,17 @@ private:
         if (name.empty())
         {
             return {false, "Usage: disable <subsystem>"};
+        }
+
+        // EmergencyStop is a reserved safety feature managed exclusively through
+        // the 'reset' command (resetEmergencyStop via requestReset()). Allowing raw
+        // disable would bypass the acknowledgement step and leave the vehicle state
+        // machine in Emergency state while the latch is gone.
+        if (name == drone::subsystems::kEmergencyStop)
+        {
+            return {false,
+                "EmergencyStop is a reserved safety feature. "
+                "Use the 'reset' command to clear an active emergency."};
         }
 
         auto res = mSubsystems.disableSubsystem(name);
@@ -328,12 +370,18 @@ private:
 
     CommandResult cmdEmergency(const std::string& reason)
     {
+        // Capture airborne status before the transition changes state.
+        // Armed (ground) -> EMERGENCY STOP; Flying/Landing (airborne) -> EMERGENCY LAND.
+        const bool airborne = mSM.isFlying() || mSM.isLanding();
+
         auto res = mSM.requestEmergency(reason);
         if (!res)
         {
             return {false, res.error()};
         }
-        return {true, "EMERGENCY STOP: " + reason};
+
+        const std::string prefix = airborne ? "EMERGENCY LAND: " : "EMERGENCY STOP: ";
+        return {true, prefix + reason};
     }
 
     CommandResult cmdReset()

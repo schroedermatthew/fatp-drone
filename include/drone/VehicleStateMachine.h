@@ -29,7 +29,7 @@ FATP_META:
  * @details
  * Five vehicle states with guard-protected transitions:
  *
- *   Preflight -> Armed    (guard: validateArmingReadiness passes)
+ *   Preflight -> Armed    (guard: validateArmingReadiness passes, including EmergencyStop check)
  *   Armed     -> Flying   (guard: at least one flight mode active)
  *   Armed     -> Preflight (disarm; always allowed from Armed)
  *   Flying    -> Landing
@@ -40,6 +40,12 @@ FATP_META:
  *
  * Guard logic validates SubsystemManager state before calling transition().
  * If the guard fails, Expected<void, std::string> carries the reason.
+ *
+ * Canonical preflight invariant:
+ *   PreflightState::on_entry() always calls ctx.subsystems.restorePreflightInvariant()
+ *   before emitting the state change event. This ensures no flight mode, MotorMix, or
+ *   ESC is left enabled when the vehicle enters Preflight, regardless of the transition
+ *   path (disarm, disarm_after_landing, or emergency reset).
  *
  * @note Thread-safety: NOT thread-safe. Use from the single control thread.
  */
@@ -123,7 +129,7 @@ using DroneTransitions = std::tuple<
 >;
 
 // ============================================================================
-// Vehicle context — shared data visible to all state on_entry/on_exit hooks
+// Vehicle context -- shared data visible to all state on_entry/on_exit hooks
 // ============================================================================
 
 /**
@@ -135,8 +141,8 @@ struct VehicleContext
 {
     SubsystemManager& subsystems;
     drone::events::DroneEventHub& events;
-    std::string lastError;   ///< Set by guard failures; cleared on successful transitions
-    std::string fromState;   ///< Name of the state being exited (set by on_exit hooks)
+    std::string lastError;   ///< Set by guard failures; cleared on successful transitions.
+    std::string fromState;   ///< Name of the state being exited (set by on_exit hooks).
 };
 
 // ============================================================================
@@ -147,6 +153,10 @@ struct VehicleContext
 
 inline void PreflightState::on_entry(VehicleContext& ctx)
 {
+    // Enforce canonical preflight invariant every time we enter Preflight,
+    // regardless of transition path (disarm, disarm_after_landing, reset).
+    // This guarantees no flight mode, MotorMix, or ESC is left enabled.
+    ctx.subsystems.restorePreflightInvariant();
     ctx.events.onVehicleStateChanged.emit(ctx.fromState, kName);
 }
 
@@ -221,7 +231,7 @@ using DroneStateMachine = fat_p::StateMachine<
 >;
 
 // ============================================================================
-// VehicleStateMachine — thin wrapper with guard logic
+// VehicleStateMachine -- thin wrapper with guard logic
 // ============================================================================
 
 /**
@@ -248,8 +258,10 @@ public:
         : mContext{subsystems, events, {}, {}}
         , mSM(mContext) // mContext must be fully initialized before this line
     {
-        // on_entry for PreflightState fires in StateMachine's constructor;
+        // on_entry for PreflightState fires in StateMachine's constructor.
         // fromState is empty string at that point (initial entry has no prior state).
+        // restorePreflightInvariant() is called; all features start disabled so it
+        // is a no-op on construction.
     }
 
     // Non-copyable, non-movable (SM is neither copyable nor movable)
@@ -297,7 +309,8 @@ public:
     /**
      * @brief Requests arming (Preflight -> Armed).
      *
-     * Guard: all arm-required subsystems must be enabled.
+     * Guard: all arm-required subsystems must be enabled and EmergencyStop must
+     * not be active (validateArmingReadiness checks both).
      *
      * @return Expected<void> on success, or error string.
      */
@@ -315,11 +328,15 @@ public:
         }
 
         mSM.transition<ArmedState>();
+        mContext.lastError.clear();
         return {};
     }
 
     /**
      * @brief Requests disarm (Armed -> Preflight).
+     *
+     * PreflightState::on_entry() will call restorePreflightInvariant() to
+     * ensure no flight mode, MotorMix, or ESC is left enabled.
      *
      * @return Expected<void> on success, or error string.
      */
@@ -331,6 +348,7 @@ public:
         }
 
         mSM.transition<PreflightState>();
+        mContext.lastError.clear();
         return {};
     }
 
@@ -351,10 +369,12 @@ public:
         const std::string mode = mContext.subsystems.activeFlightMode();
         if (mode.empty())
         {
-            return reject("takeoff", "no flight mode is active - enable Manual, Stabilize, AltHold, PosHold, Autonomous, or RTL");
+            return reject("takeoff",
+                "no flight mode is active - enable Manual, Stabilize, AltHold, PosHold, Autonomous, or RTL");
         }
 
         mSM.transition<FlyingState>();
+        mContext.lastError.clear();
         return {};
     }
 
@@ -371,6 +391,7 @@ public:
         }
 
         mSM.transition<LandingState>();
+        mContext.lastError.clear();
         return {};
     }
 
@@ -387,11 +408,15 @@ public:
         }
 
         mSM.transition<ArmedState>();
+        mContext.lastError.clear();
         return {};
     }
 
     /**
      * @brief Requests disarm after landing (Landing -> Preflight).
+     *
+     * PreflightState::on_entry() will call restorePreflightInvariant() to
+     * ensure no flight mode, MotorMix, or ESC is left enabled.
      *
      * @return Expected<void> on success, or error string.
      */
@@ -403,6 +428,7 @@ public:
         }
 
         mSM.transition<PreflightState>();
+        mContext.lastError.clear();
         return {};
     }
 
@@ -412,17 +438,17 @@ public:
      * Routes to one of two SubsystemManager paths depending on whether the vehicle
      * is airborne:
      *
-     *   - Armed (on ground): calls triggerEmergencyStop() — full motor kill via
+     *   - Armed (on ground): calls triggerEmergencyStop() -- full motor kill via
      *     forceExclusive(). Safe because the vehicle is not airborne.
      *
-     *   - Flying or Landing (airborne): calls triggerEmergencyLand() — forceExclusive()
+     *   - Flying or Landing (airborne): calls triggerEmergencyLand() -- forceExclusive()
      *     sets the EmergencyStop latch and clears flight modes, then the power chain
      *     (BatteryMonitor, ESC, MotorMix) is re-enabled so motors stay live for a
      *     controlled descent. The operator or autopilot must command the descent;
      *     this method only sets the safety state.
      *
-     * In both cases the EmergencyStop A2 latch is active after this call, blocking
-     * any flight mode re-enable until requestReset() is called.
+     * In both cases the FM Preempts latch is active after this call, blocking any
+     * flight mode re-enable until requestReset() is called.
      *
      * The SM transition proceeds even if the subsystem call returns an error, since
      * safety state takes precedence; errors are surfaced via onSubsystemError.
@@ -450,6 +476,7 @@ public:
 
         mContext.events.onSafetyAlert.emit(reason);
         mSM.transition<EmergencyState>();
+        mContext.lastError.clear();
         return {};
     }
 
@@ -457,8 +484,12 @@ public:
      * @brief Resets from Emergency to Preflight after operator acknowledgement.
      *
      * Calls SubsystemManager::resetEmergencyStop() to clear the EmergencyStop latch
-     * before transitioning. Returns an error if the clear fails so the operator
-     * knows the latch was not released and re-arming would still be blocked.
+     * (FM Preempts latch lifted), then transitions to Preflight. PreflightState::on_entry()
+     * calls restorePreflightInvariant() to power down the motor chain that was left
+     * live by triggerEmergencyLand().
+     *
+     * Returns an error if the clear fails so the operator knows the latch was not
+     * released and re-arming would still be blocked.
      *
      * @return Expected<void> on success, or error string if not in Emergency or
      *         if the EmergencyStop latch cannot be cleared.
@@ -477,6 +508,7 @@ public:
         }
 
         mSM.transition<PreflightState>();
+        mContext.lastError.clear();
         return {};
     }
 
@@ -485,7 +517,7 @@ private:
     // StateMachine holds a Context& reference bound in its constructor.
     // C++ initializes members in declaration order; if mSM came first,
     // the StateMachine constructor would receive an uninitialized mContext reference.
-    VehicleContext   mContext; // initialized first
+    VehicleContext    mContext; // initialized first
     DroneStateMachine mSM;     // initialized second; binds mContext in ctor
 
     fat_p::Expected<void, std::string> reject(std::string_view command, std::string_view reason)
