@@ -89,10 +89,10 @@ FATP_TEST_CASE(requires_chain_poshold_enables_sensors)
 {
     Fixture f;
     FATP_ASSERT_TRUE(f.mgr.enableSubsystem(kPosHold).has_value(), "PosHold should succeed");
-    FATP_ASSERT_TRUE(f.mgr.isEnabled(kPosHold));
-    FATP_ASSERT_TRUE(f.mgr.isEnabled(kIMU));
-    FATP_ASSERT_TRUE(f.mgr.isEnabled(kBarometer));
-    FATP_ASSERT_TRUE(f.mgr.isEnabled(kGPS));
+    FATP_ASSERT_TRUE(f.mgr.isEnabled(kPosHold), "f.mgr.isEnabled(kPosHold)");
+    FATP_ASSERT_TRUE(f.mgr.isEnabled(kIMU), "f.mgr.isEnabled(kIMU)");
+    FATP_ASSERT_TRUE(f.mgr.isEnabled(kBarometer), "f.mgr.isEnabled(kBarometer)");
+    FATP_ASSERT_TRUE(f.mgr.isEnabled(kGPS), "f.mgr.isEnabled(kGPS)");
     return true;
 }
 
@@ -100,12 +100,12 @@ FATP_TEST_CASE(autonomous_implies_collision_avoidance)
 {
     Fixture f;
     FATP_ASSERT_TRUE(f.mgr.enableSubsystem(kAutonomous).has_value(), "Autonomous should succeed");
-    FATP_ASSERT_TRUE(f.mgr.isEnabled(kAutonomous));
+    FATP_ASSERT_TRUE(f.mgr.isEnabled(kAutonomous), "f.mgr.isEnabled(kAutonomous)");
     FATP_ASSERT_TRUE(f.mgr.isEnabled(kCollisionAvoid), "CollisionAvoidance auto-enabled via Implies");
-    FATP_ASSERT_TRUE(f.mgr.isEnabled(kIMU));
-    FATP_ASSERT_TRUE(f.mgr.isEnabled(kBarometer));
-    FATP_ASSERT_TRUE(f.mgr.isEnabled(kGPS));
-    FATP_ASSERT_TRUE(f.mgr.isEnabled(kDatalink));
+    FATP_ASSERT_TRUE(f.mgr.isEnabled(kIMU), "f.mgr.isEnabled(kIMU)");
+    FATP_ASSERT_TRUE(f.mgr.isEnabled(kBarometer), "f.mgr.isEnabled(kBarometer)");
+    FATP_ASSERT_TRUE(f.mgr.isEnabled(kGPS), "f.mgr.isEnabled(kGPS)");
+    FATP_ASSERT_TRUE(f.mgr.isEnabled(kDatalink), "f.mgr.isEnabled(kDatalink)");
     return true;
 }
 
@@ -115,8 +115,8 @@ FATP_TEST_CASE(flight_modes_mutually_exclusive)
     (void)f.mgr.enableSubsystem(kManual);
     FATP_ASSERT_FALSE(f.mgr.enableSubsystem(kAltHold).has_value(),
                       "AltHold rejected while Manual is active");
-    FATP_ASSERT_TRUE(f.mgr.isEnabled(kManual));
-    FATP_ASSERT_FALSE(f.mgr.isEnabled(kAltHold));
+    FATP_ASSERT_TRUE(f.mgr.isEnabled(kManual), "f.mgr.isEnabled(kManual)");
+    FATP_ASSERT_FALSE(f.mgr.isEnabled(kAltHold), "f.mgr.isEnabled(kAltHold)");
     return true;
 }
 
@@ -124,9 +124,9 @@ FATP_TEST_CASE(power_chain_auto_enable_via_motormix)
 {
     Fixture f;
     (void)f.mgr.enableSubsystem(kMotorMix);
-    FATP_ASSERT_TRUE(f.mgr.isEnabled(kMotorMix));
-    FATP_ASSERT_TRUE(f.mgr.isEnabled(kESC));
-    FATP_ASSERT_TRUE(f.mgr.isEnabled(kBatteryMonitor));
+    FATP_ASSERT_TRUE(f.mgr.isEnabled(kMotorMix), "f.mgr.isEnabled(kMotorMix)");
+    FATP_ASSERT_TRUE(f.mgr.isEnabled(kESC), "f.mgr.isEnabled(kESC)");
+    FATP_ASSERT_TRUE(f.mgr.isEnabled(kBatteryMonitor), "f.mgr.isEnabled(kBatteryMonitor)");
     return true;
 }
 
@@ -444,8 +444,8 @@ FATP_TEST_CASE(switch_flight_mode_atomic)
 {
     Fixture f;
     (void)f.mgr.enableSubsystem(kStabilize);
-    FATP_ASSERT_TRUE(f.mgr.isEnabled(kStabilize));
-    FATP_ASSERT_FALSE(f.mgr.isEnabled(kGPS));
+    FATP_ASSERT_TRUE(f.mgr.isEnabled(kStabilize), "f.mgr.isEnabled(kStabilize)");
+    FATP_ASSERT_FALSE(f.mgr.isEnabled(kGPS), "f.mgr.isEnabled(kGPS)");
 
     auto res = f.mgr.switchFlightMode(kPosHold);
     FATP_ASSERT_TRUE(res.has_value(),              "switchFlightMode to PosHold should succeed");
@@ -481,7 +481,7 @@ FATP_TEST_CASE(validate_flight_mode_rejects_non_mode)
 {
     Fixture f;
     (void)f.mgr.enableSubsystem(kGPS);
-    FATP_ASSERT_TRUE(f.mgr.isEnabled(kGPS));
+    FATP_ASSERT_TRUE(f.mgr.isEnabled(kGPS), "f.mgr.isEnabled(kGPS)");
     FATP_ASSERT_FALSE(f.mgr.validateFlightMode(kGPS).has_value(),
                       "validateFlightMode(GPS) must fail: not a flight mode");
     return true;
@@ -511,9 +511,9 @@ FATP_TEST_CASE(rtl_auto_enables_imu_barometer_gps)
 {
     Fixture f;
     FATP_ASSERT_TRUE(f.mgr.enableSubsystem(kRTL).has_value(), "RTL should succeed");
-    FATP_ASSERT_TRUE(f.mgr.isEnabled(kIMU));
-    FATP_ASSERT_TRUE(f.mgr.isEnabled(kBarometer));
-    FATP_ASSERT_TRUE(f.mgr.isEnabled(kGPS));
+    FATP_ASSERT_TRUE(f.mgr.isEnabled(kIMU), "f.mgr.isEnabled(kIMU)");
+    FATP_ASSERT_TRUE(f.mgr.isEnabled(kBarometer), "f.mgr.isEnabled(kBarometer)");
+    FATP_ASSERT_TRUE(f.mgr.isEnabled(kGPS), "f.mgr.isEnabled(kGPS)");
     FATP_ASSERT_FALSE(f.mgr.isEnabled(kAltHold), "AltHold must NOT be auto-enabled");
     return true;
 }
@@ -521,17 +521,17 @@ FATP_TEST_CASE(rtl_auto_enables_imu_barometer_gps)
 FATP_TEST_CASE(failsafe_auto_enables_battery_monitor_and_rcreceiver)
 {
     Fixture f;
-    FATP_ASSERT_TRUE(f.mgr.enableSubsystem(kFailsafe).has_value());
-    FATP_ASSERT_TRUE(f.mgr.isEnabled(kBatteryMonitor));
-    FATP_ASSERT_TRUE(f.mgr.isEnabled(kRCReceiver));
+    FATP_ASSERT_TRUE(f.mgr.enableSubsystem(kFailsafe).has_value(), "f.mgr.enableSubsystem(kFailsafe).has_value()");
+    FATP_ASSERT_TRUE(f.mgr.isEnabled(kBatteryMonitor), "f.mgr.isEnabled(kBatteryMonitor)");
+    FATP_ASSERT_TRUE(f.mgr.isEnabled(kRCReceiver), "f.mgr.isEnabled(kRCReceiver)");
     return true;
 }
 
 FATP_TEST_CASE(geofence_is_independent)
 {
     Fixture f;
-    FATP_ASSERT_TRUE(f.mgr.enableSubsystem(kGeofence).has_value());
-    FATP_ASSERT_TRUE(f.mgr.disableSubsystem(kGeofence).has_value());
+    FATP_ASSERT_TRUE(f.mgr.enableSubsystem(kGeofence).has_value(), "f.mgr.enableSubsystem(kGeofence).has_value()");
+    FATP_ASSERT_TRUE(f.mgr.disableSubsystem(kGeofence).has_value(), "f.mgr.disableSubsystem(kGeofence).has_value()");
     return true;
 }
 
@@ -542,14 +542,14 @@ FATP_TEST_CASE(geofence_is_independent)
 FATP_TEST_CASE(adversarial_enable_unknown_subsystem)
 {
     Fixture f;
-    FATP_ASSERT_FALSE(f.mgr.enableSubsystem("NotASubsystem").has_value());
+    FATP_ASSERT_FALSE(f.mgr.enableSubsystem("NotASubsystem").has_value(), "f.mgr.enableSubsystem(\"NotASubsystem\").has_value()");
     return true;
 }
 
 FATP_TEST_CASE(adversarial_enable_empty_name)
 {
     Fixture f;
-    FATP_ASSERT_FALSE(f.mgr.enableSubsystem("").has_value());
+    FATP_ASSERT_FALSE(f.mgr.enableSubsystem("").has_value(), "f.mgr.enableSubsystem(\"\").has_value()");
     return true;
 }
 
@@ -557,8 +557,8 @@ FATP_TEST_CASE(adversarial_cascading_disable_blocked)
 {
     Fixture f;
     (void)f.mgr.enableSubsystem(kPosHold);
-    FATP_ASSERT_FALSE(f.mgr.disableSubsystem(kIMU).has_value());
-    FATP_ASSERT_FALSE(f.mgr.disableSubsystem(kGPS).has_value());
+    FATP_ASSERT_FALSE(f.mgr.disableSubsystem(kIMU).has_value(), "f.mgr.disableSubsystem(kIMU).has_value()");
+    FATP_ASSERT_FALSE(f.mgr.disableSubsystem(kGPS).has_value(), "f.mgr.disableSubsystem(kGPS).has_value()");
     return true;
 }
 
