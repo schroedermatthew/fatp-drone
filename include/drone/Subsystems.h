@@ -28,6 +28,19 @@ FATP_META:
  *
  * All string literals used as FeatureManager keys live here.
  * Never scatter magic strings through the codebase.
+ *
+ * Internal profile features (kProfileArmed, kProfileEmergencyLand) are
+ * registered in the FeatureManager graph but are not exposed as user commands.
+ * They exist to encode subsystem configurations as graph-native relationships:
+ *
+ *   kProfileArmed       -- owned by the ArmedState; Entails the power chain
+ *                          (MotorMix, ESC). Disabling it auto-tears-down motors
+ *                          via FM ref-counted Entails semantics.
+ *
+ *   kProfileEmergencyLand -- owned by triggerEmergencyLand(); Entails the power
+ *                          chain so motors stay live during controlled descent.
+ *                          Disabling it (in resetEmergencyStop()) auto-cleans
+ *                          the motor chain without imperative loops.
  */
 
 namespace drone::subsystems
@@ -75,10 +88,26 @@ inline constexpr const char* kRTL        = "RTL"; ///< Return to Launch
 // Safety subsystems
 // ============================================================================
 
-inline constexpr const char* kGeofence         = "Geofence";
-inline constexpr const char* kFailsafe          = "Failsafe";
-inline constexpr const char* kCollisionAvoid    = "CollisionAvoidance";
-inline constexpr const char* kEmergencyStop     = "EmergencyStop";
+inline constexpr const char* kGeofence      = "Geofence";
+inline constexpr const char* kFailsafe      = "Failsafe";
+inline constexpr const char* kCollisionAvoid = "CollisionAvoidance";
+inline constexpr const char* kEmergencyStop = "EmergencyStop";
+
+// ============================================================================
+// Internal profile features — managed by the state machine, not user commands
+//
+// These are registered in the FM graph so their Entails and Preempts
+// relationships are enforced by the graph, not by imperative code.
+// CommandParser blocks raw enable/disable of these names.
+// ============================================================================
+
+///< Enabled by ArmedState::on_entry; disabled by PreflightState::on_entry.
+///< Entails MotorMix and ESC so the power chain is owned by the Armed state.
+inline constexpr const char* kProfileArmed        = "ArmedProfile";
+
+///< Enabled by triggerEmergencyLand(); disabled by resetEmergencyStop().
+///< Entails MotorMix and ESC so motors stay live for controlled descent.
+inline constexpr const char* kProfileEmergencyLand = "EmergencyLandProfile";
 
 // ============================================================================
 // Group names

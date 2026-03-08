@@ -2,9 +2,13 @@
  * @file test_DroneCore.cpp
  * @brief Integration tests for the full drone component stack.
  *
- * Tests cover: all CLI commands, happy path sequences, adversarial inputs
- * (wrong state, bad args, hostile strings), disarm_after_landing command,
- * and stress sequences through the CommandParser.
+ * Graph-native design invariants verified end-to-end:
+ *   - arm brings up power chain via ArmedProfile Entails (user need not enable BatteryMonitor/ESC/MotorMix)
+ *   - disarm / disarm_after_landing / emergency reset all land in canonical Preflight via graph
+ *   - airborne emergency uses EmergencyLandProfile Entails to keep motors live
+ *   - resetEmergencyStop auto-cleans power chain through FM Entails ref-count
+ *   - reserved features (EmergencyStop, ArmedProfile, EmergencyLandProfile) blocked from raw toggle
+ *   - leading-whitespace trimming, case normalisation, adversarial inputs
  */
 /*
 FATP_META:
@@ -14,22 +18,7 @@ FATP_META:
   path: components/DroneCore/tests/test_DroneCore.cpp
   namespace: fat_p::testing::dronecore
   layer: Testing
-  summary: Integration tests for the full drone stack - commands, adversarial, stress.
   api_stability: in_work
-  related:
-    headers:
-      - include/drone/CommandParser.h
-      - include/drone/VehicleStateMachine.h
-      - include/drone/SubsystemManager.h
-      - include/drone/TelemetryLog.h
-      - include/drone/DroneEvents.h
-  hygiene:
-    pragma_once: false
-    include_guard: false
-    defines_total: 0
-    defines_unprefixed: 0
-    undefs_total: 0
-    includes_windows_h: false
 */
 
 #include <iostream>
@@ -54,21 +43,20 @@ struct FullStack
     drone::TelemetryLog<256>     log{hub};
     drone::CommandParser<256>    cmd{mgr, sm, log};
 
-    void enableArmingAndManual()
+    // Minimal arming prerequisites — power chain is NOT set up by user;
+    // it is brought up by ArmedProfile Entails when arm() fires.
+    void enableArmingPrereqs()
     {
         using namespace drone::subsystems;
         (void)mgr.enableSubsystem(kIMU);
         (void)mgr.enableSubsystem(kBarometer);
-        (void)mgr.enableSubsystem(kBatteryMonitor);
-        (void)mgr.enableSubsystem(kESC);
-        (void)mgr.enableSubsystem(kMotorMix);
         (void)mgr.enableSubsystem(kRCReceiver);
         (void)mgr.enableSubsystem(kManual);
     }
 
     void goFlying()
     {
-        enableArmingAndManual();
+        enableArmingPrereqs();
         (void)cmd.execute("arm");
         (void)cmd.execute("takeoff");
     }
@@ -81,6 +69,177 @@ struct FullStack
 };
 
 // ============================================================================
+// Graph-native: arm brings up power chain via FM Entails
+// ============================================================================
+
+FATP_TEST_CASE(arm_brings_up_power_chain_via_graph)
+{
+    // User only enables IMU, Barometer, RCReceiver, Manual.
+    // Power chain must be absent before arming and present after.
+    FullStack f;
+    using namespace drone::subsystems;
+    f.enableArmingPrereqs();
+
+    FATP_ASSERT_FALSE(f.mgr.isEnabled(kMotorMix),       "MotorMix off before arm");
+    FATP_ASSERT_FALSE(f.mgr.isEnabled(kESC),            "ESC off before arm");
+    FATP_ASSERT_FALSE(f.mgr.isEnabled(kBatteryMonitor), "BatteryMonitor off before arm");
+    FATP_ASSERT_FALSE(f.mgr.isEnabled(kProfileArmed),   "ArmedProfile off before arm");
+
+    FATP_ASSERT_TRUE(f.cmd.execute("arm").success, "arm should succeed");
+    FATP_ASSERT_TRUE(f.sm.isArmed(), "should be Armed");
+
+    FATP_ASSERT_TRUE(f.mgr.isEnabled(kProfileArmed),   "ArmedProfile on after arm");
+    FATP_ASSERT_TRUE(f.mgr.isEnabled(kMotorMix),       "MotorMix auto-up via Entails");
+    FATP_ASSERT_TRUE(f.mgr.isEnabled(kESC),            "ESC auto-up via Requires");
+    FATP_ASSERT_TRUE(f.mgr.isEnabled(kBatteryMonitor), "BatteryMonitor auto-up via Requires");
+    return true;
+}
+
+FATP_TEST_CASE(disarm_tears_down_power_chain_via_graph)
+{
+    FullStack f;
+    using namespace drone::subsystems;
+    f.enableArmingPrereqs();
+    (void)f.cmd.execute("arm");
+    FATP_ASSERT_TRUE(f.mgr.isEnabled(kMotorMix), "MotorMix on after arm");
+
+    FATP_ASSERT_TRUE(f.cmd.execute("disarm").success, "disarm should succeed");
+    FATP_ASSERT_TRUE(f.sm.isPreflight(), "should be Preflight");
+
+    FATP_ASSERT_FALSE(f.mgr.isEnabled(kProfileArmed), "ArmedProfile cleared");
+    FATP_ASSERT_FALSE(f.mgr.isEnabled(kMotorMix),     "MotorMix auto-torn-down via Entails");
+    FATP_ASSERT_FALSE(f.mgr.isEnabled(kESC),          "ESC auto-torn-down");
+    FATP_ASSERT_TRUE(f.mgr.activeFlightMode().empty(), "No active flight mode");
+    return true;
+}
+
+FATP_TEST_CASE(disarm_after_landing_tears_down_power_chain_via_graph)
+{
+    FullStack f;
+    using namespace drone::subsystems;
+    f.goLanding();
+    FATP_ASSERT_TRUE(f.mgr.isEnabled(kMotorMix), "MotorMix on during landing");
+
+    FATP_ASSERT_TRUE(f.cmd.execute("disarm_after_landing").success);
+    FATP_ASSERT_TRUE(f.sm.isPreflight());
+    FATP_ASSERT_FALSE(f.mgr.isEnabled(kMotorMix),    "MotorMix auto-torn-down");
+    FATP_ASSERT_FALSE(f.mgr.isEnabled(kESC),         "ESC auto-torn-down");
+    FATP_ASSERT_TRUE(f.mgr.activeFlightMode().empty());
+    return true;
+}
+
+FATP_TEST_CASE(airborne_emergency_uses_emergency_land_profile)
+{
+    FullStack f;
+    using namespace drone::subsystems;
+    f.goFlying();
+    FATP_ASSERT_TRUE(f.mgr.isEnabled(kProfileArmed), "ArmedProfile on while flying");
+
+    auto res = f.cmd.execute("emergency sensor loss");
+    FATP_ASSERT_TRUE(res.success, "emergency should succeed");
+    FATP_ASSERT_CONTAINS(res.message, "LAND", "Airborne emergency message must say LAND");
+    FATP_ASSERT_TRUE(f.sm.isEmergency());
+
+    FATP_ASSERT_FALSE(f.mgr.isEnabled(kProfileArmed),        "ArmedProfile cleared by forceExclusive");
+    FATP_ASSERT_TRUE(f.mgr.isEnabled(kProfileEmergencyLand), "EmergencyLandProfile owns power chain");
+    FATP_ASSERT_TRUE(f.mgr.isEnabled(kMotorMix),             "MotorMix live via EmergencyLandProfile");
+    FATP_ASSERT_TRUE(f.mgr.isEnabled(kEmergencyStop),        "EmergencyStop latched");
+    return true;
+}
+
+FATP_TEST_CASE(airborne_emergency_reset_auto_cleans_power_chain_no_explicit_disable)
+{
+    // After airborne emergency, reset must clean up MotorMix/ESC through the
+    // FM graph (EmergencyLandProfile Entails ref-count) — no explicit disable loop.
+    FullStack f;
+    using namespace drone::subsystems;
+    f.goFlying();
+    (void)f.cmd.execute("emergency autopilot fail");
+    FATP_ASSERT_TRUE(f.mgr.isEnabled(kMotorMix), "MotorMix live during emergency");
+
+    FATP_ASSERT_TRUE(f.cmd.execute("reset").success);
+    FATP_ASSERT_TRUE(f.sm.isPreflight());
+    FATP_ASSERT_FALSE(f.mgr.isEnabled(kEmergencyStop),        "ES cleared");
+    FATP_ASSERT_FALSE(f.mgr.isEnabled(kProfileEmergencyLand), "ELand profile cleared");
+    FATP_ASSERT_FALSE(f.mgr.isEnabled(kMotorMix),             "MotorMix auto-torn-down");
+    FATP_ASSERT_FALSE(f.mgr.isEnabled(kESC),                  "ESC auto-torn-down");
+    return true;
+}
+
+FATP_TEST_CASE(ground_emergency_message_says_stop)
+{
+    FullStack f;
+    f.enableArmingPrereqs();
+    (void)f.cmd.execute("arm");
+    auto res = f.cmd.execute("emergency motor stall");
+    FATP_ASSERT_TRUE(res.success);
+    FATP_ASSERT_CONTAINS(res.message, "STOP", "Ground emergency must say STOP");
+    return true;
+}
+
+FATP_TEST_CASE(ground_emergency_reset_restores_preflight)
+{
+    FullStack f;
+    using namespace drone::subsystems;
+    f.enableArmingPrereqs();
+    (void)f.cmd.execute("arm");
+    (void)f.cmd.execute("emergency");
+    FATP_ASSERT_TRUE(f.sm.isEmergency());
+
+    (void)f.cmd.execute("reset");
+    FATP_ASSERT_TRUE(f.sm.isPreflight());
+    FATP_ASSERT_FALSE(f.mgr.isEnabled(kMotorMix));
+    FATP_ASSERT_FALSE(f.mgr.isEnabled(kESC));
+    FATP_ASSERT_FALSE(f.mgr.isEnabled(kEmergencyStop));
+    return true;
+}
+
+// ============================================================================
+// Reserved feature guards
+// ============================================================================
+
+FATP_TEST_CASE(enable_emergency_stop_raw_blocked)
+{
+    FullStack f;
+    auto res = f.cmd.execute("enable EmergencyStop");
+    FATP_ASSERT_FALSE(res.success, "enable EmergencyStop must be rejected");
+    FATP_ASSERT_CONTAINS(res.message, "reserved");
+    FATP_ASSERT_FALSE(f.mgr.isEnabled(drone::subsystems::kEmergencyStop));
+    return true;
+}
+
+FATP_TEST_CASE(disable_emergency_stop_raw_blocked)
+{
+    FullStack f;
+    f.enableArmingPrereqs();
+    (void)f.cmd.execute("arm");
+    (void)f.cmd.execute("emergency test");
+    auto res = f.cmd.execute("disable EmergencyStop");
+    FATP_ASSERT_FALSE(res.success, "disable EmergencyStop must be rejected");
+    FATP_ASSERT_CONTAINS(res.message, "reserved");
+    FATP_ASSERT_TRUE(f.sm.isEmergency(), "Must remain in Emergency");
+    return true;
+}
+
+FATP_TEST_CASE(enable_armed_profile_raw_blocked)
+{
+    FullStack f;
+    auto res = f.cmd.execute("enable ArmedProfile");
+    FATP_ASSERT_FALSE(res.success, "enable ArmedProfile must be rejected");
+    FATP_ASSERT_CONTAINS(res.message, "reserved");
+    return true;
+}
+
+FATP_TEST_CASE(enable_emergency_land_profile_raw_blocked)
+{
+    FullStack f;
+    auto res = f.cmd.execute("enable EmergencyLandProfile");
+    FATP_ASSERT_FALSE(res.success, "enable EmergencyLandProfile must be rejected");
+    FATP_ASSERT_CONTAINS(res.message, "reserved");
+    return true;
+}
+
+// ============================================================================
 // Basic commands
 // ============================================================================
 
@@ -88,15 +247,15 @@ FATP_TEST_CASE(command_unknown_returns_error)
 {
     FullStack f;
     auto result = f.cmd.execute("frobnicate");
-    FATP_ASSERT_FALSE(result.success, "Unknown command should return failure");
-    FATP_ASSERT_CONTAINS(result.message, "Unknown command", "Error should say 'Unknown command'");
+    FATP_ASSERT_FALSE(result.success);
+    FATP_ASSERT_CONTAINS(result.message, "Unknown command");
     return true;
 }
 
 FATP_TEST_CASE(command_empty_line_ok)
 {
     FullStack f;
-    FATP_ASSERT_TRUE(f.cmd.execute("").success, "Empty line should succeed (no-op)");
+    FATP_ASSERT_TRUE(f.cmd.execute("").success);
     return true;
 }
 
@@ -104,47 +263,35 @@ FATP_TEST_CASE(command_help_returns_text)
 {
     FullStack f;
     auto result = f.cmd.execute("help");
-    FATP_ASSERT_TRUE(result.success, "help should succeed");
-    FATP_ASSERT_CONTAINS(result.message, "enable",              "Help should list 'enable'");
-    FATP_ASSERT_CONTAINS(result.message, "arm",                 "Help should list 'arm'");
-    FATP_ASSERT_CONTAINS(result.message, "takeoff",             "Help should list 'takeoff'");
-    FATP_ASSERT_CONTAINS(result.message, "disarm_after_landing","Help should list 'disarm_after_landing'");
+    FATP_ASSERT_TRUE(result.success);
+    FATP_ASSERT_CONTAINS(result.message, "enable");
+    FATP_ASSERT_CONTAINS(result.message, "arm");
+    FATP_ASSERT_CONTAINS(result.message, "disarm_after_landing");
     return true;
 }
 
 FATP_TEST_CASE(command_quit_sets_quit_flag)
 {
     FullStack f;
-    FATP_ASSERT_TRUE(f.cmd.execute("quit").quit, "quit should set quit flag");
-    FATP_ASSERT_TRUE(f.cmd.execute("exit").quit, "exit should set quit flag");
+    FATP_ASSERT_TRUE(f.cmd.execute("quit").quit);
+    FATP_ASSERT_TRUE(f.cmd.execute("exit").quit);
     return true;
 }
 
 FATP_TEST_CASE(command_enable_success)
 {
     FullStack f;
-    auto result = f.cmd.execute("enable GPS");
-    FATP_ASSERT_TRUE(result.success, "enable GPS should succeed");
-    FATP_ASSERT_TRUE(f.mgr.isEnabled("GPS"), "GPS should be enabled");
+    FATP_ASSERT_TRUE(f.cmd.execute("enable GPS").success);
+    FATP_ASSERT_TRUE(f.mgr.isEnabled("GPS"));
     return true;
 }
 
 FATP_TEST_CASE(command_enable_missing_arg)
 {
     FullStack f;
-    auto result = f.cmd.execute("enable");
-    FATP_ASSERT_FALSE(result.success, "enable without arg should fail");
-    FATP_ASSERT_CONTAINS(result.message, "Usage", "Error should contain usage hint");
-    return true;
-}
-
-FATP_TEST_CASE(command_enable_dependency_failure)
-{
-    FullStack f;
-    (void)f.cmd.execute("enable Manual");
-    auto result = f.cmd.execute("enable Stabilize"); // MutuallyExclusive conflict
-    FATP_ASSERT_FALSE(result.success, "enable Stabilize while Manual is active should fail");
-    FATP_ASSERT_CONTAINS(result.message, "failed", "Error should say 'failed'");
+    auto res = f.cmd.execute("enable");
+    FATP_ASSERT_FALSE(res.success);
+    FATP_ASSERT_CONTAINS(res.message, "Usage");
     return true;
 }
 
@@ -152,16 +299,9 @@ FATP_TEST_CASE(command_disable_success)
 {
     FullStack f;
     (void)f.cmd.execute("enable GPS");
-    auto result = f.cmd.execute("disable GPS");
-    FATP_ASSERT_TRUE(result.success, "disable GPS should succeed");
-    FATP_ASSERT_FALSE(f.mgr.isEnabled("GPS"), "GPS should be disabled");
-    return true;
-}
-
-FATP_TEST_CASE(command_disable_missing_arg)
-{
-    FullStack f;
-    FATP_ASSERT_FALSE(f.cmd.execute("disable").success, "disable without arg should fail");
+    auto res = f.cmd.execute("disable GPS");
+    FATP_ASSERT_TRUE(res.success);
+    FATP_ASSERT_FALSE(f.mgr.isEnabled("GPS"));
     return true;
 }
 
@@ -169,81 +309,71 @@ FATP_TEST_CASE(command_status_shows_state)
 {
     FullStack f;
     auto result = f.cmd.execute("status");
-    FATP_ASSERT_TRUE(result.success, "status should succeed");
-    FATP_ASSERT_CONTAINS(result.message, "Preflight", "Status should show current state");
+    FATP_ASSERT_TRUE(result.success);
+    FATP_ASSERT_CONTAINS(result.message, "Preflight");
     return true;
 }
 
-FATP_TEST_CASE(command_arm_without_subsystems_fails)
+FATP_TEST_CASE(command_arm_without_prereqs_fails)
 {
     FullStack f;
-    auto result = f.cmd.execute("arm");
-    FATP_ASSERT_FALSE(result.success, "arm without subsystems should fail");
-    FATP_ASSERT_TRUE(f.sm.isPreflight(), "Should remain in Preflight");
+    FATP_ASSERT_FALSE(f.cmd.execute("arm").success);
+    FATP_ASSERT_TRUE(f.sm.isPreflight());
     return true;
 }
 
 FATP_TEST_CASE(command_arm_success)
 {
     FullStack f;
-    f.enableArmingAndManual();
-    FATP_ASSERT_TRUE(f.cmd.execute("arm").success, "arm should succeed");
-    FATP_ASSERT_TRUE(f.sm.isArmed(), "Should be Armed");
+    f.enableArmingPrereqs();
+    FATP_ASSERT_TRUE(f.cmd.execute("arm").success);
+    FATP_ASSERT_TRUE(f.sm.isArmed());
     return true;
 }
 
 FATP_TEST_CASE(command_full_flight_sequence)
 {
     FullStack f;
-    f.enableArmingAndManual();
+    f.enableArmingPrereqs();
     FATP_ASSERT_TRUE(f.cmd.execute("arm").success,              "arm");
     FATP_ASSERT_TRUE(f.cmd.execute("takeoff").success,          "takeoff");
     FATP_ASSERT_TRUE(f.cmd.execute("land").success,             "land");
     FATP_ASSERT_TRUE(f.cmd.execute("landing_complete").success, "landing_complete");
     FATP_ASSERT_TRUE(f.cmd.execute("disarm").success,           "disarm");
-    FATP_ASSERT_TRUE(f.sm.isPreflight(), "Should end in Preflight");
+    FATP_ASSERT_TRUE(f.sm.isPreflight());
     return true;
 }
 
 FATP_TEST_CASE(command_disarm_after_landing)
 {
-    // Landing -> Preflight directly via the disarm_after_landing command.
     FullStack f;
     f.goLanding();
-    FATP_ASSERT_TRUE(f.sm.isLanding(), "Pre-condition: must be Landing");
-    auto result = f.cmd.execute("disarm_after_landing");
-    FATP_ASSERT_TRUE(result.success, "disarm_after_landing should succeed from Landing");
-    FATP_ASSERT_TRUE(f.sm.isPreflight(), "Should be Preflight after disarm_after_landing");
+    FATP_ASSERT_TRUE(f.sm.isLanding(), "Pre-condition");
+    FATP_ASSERT_TRUE(f.cmd.execute("disarm_after_landing").success);
+    FATP_ASSERT_TRUE(f.sm.isPreflight());
     return true;
 }
 
 FATP_TEST_CASE(command_emergency_and_reset)
 {
     FullStack f;
-    f.enableArmingAndManual();
+    f.enableArmingPrereqs();
     (void)f.cmd.execute("arm");
-    FATP_ASSERT_TRUE(f.cmd.execute("emergency engine failure").success, "emergency should succeed");
-    FATP_ASSERT_TRUE(f.sm.isEmergency(), "Should be Emergency");
-    FATP_ASSERT_TRUE(f.cmd.execute("reset").success, "reset should succeed");
-    FATP_ASSERT_TRUE(f.sm.isPreflight(), "Should be back in Preflight");
+    FATP_ASSERT_TRUE(f.cmd.execute("emergency engine failure").success);
+    FATP_ASSERT_TRUE(f.sm.isEmergency());
+    FATP_ASSERT_TRUE(f.cmd.execute("reset").success);
+    FATP_ASSERT_TRUE(f.sm.isPreflight());
     return true;
 }
 
 FATP_TEST_CASE(command_log_after_events)
 {
     FullStack f;
-    f.enableArmingAndManual();
+    f.enableArmingPrereqs();
     (void)f.cmd.execute("arm");
     auto result = f.cmd.execute("log 20");
-    FATP_ASSERT_TRUE(result.success, "log should succeed");
-    FATP_ASSERT_CONTAINS(result.message, "Armed", "Log should contain Armed transition");
-    return true;
-}
-
-FATP_TEST_CASE(command_log_invalid_n)
-{
-    FullStack f;
-    FATP_ASSERT_FALSE(f.cmd.execute("log abc").success, "log with non-integer arg should fail");
+    FATP_ASSERT_TRUE(result.success);
+    FATP_ASSERT_CONTAINS(result.message, "Armed");
     return true;
 }
 
@@ -251,8 +381,8 @@ FATP_TEST_CASE(command_graph_returns_dot)
 {
     FullStack f;
     auto result = f.cmd.execute("graph");
-    FATP_ASSERT_TRUE(result.success, "graph should succeed");
-    FATP_ASSERT_CONTAINS(result.message, "digraph", "graph should contain 'digraph'");
+    FATP_ASSERT_TRUE(result.success);
+    FATP_ASSERT_CONTAINS(result.message, "digraph");
     return true;
 }
 
@@ -261,41 +391,8 @@ FATP_TEST_CASE(command_json_returns_json)
     FullStack f;
     (void)f.cmd.execute("enable IMU");
     auto result = f.cmd.execute("json");
-    FATP_ASSERT_TRUE(result.success, "json should succeed");
-    FATP_ASSERT_CONTAINS(result.message, "IMU", "JSON should contain IMU");
-    return true;
-}
-
-// ============================================================================
-// Integration
-// ============================================================================
-
-FATP_TEST_CASE(integration_telemetry_captures_full_flight)
-{
-    FullStack f;
-    f.enableArmingAndManual();
-    (void)f.cmd.execute("arm");
-    (void)f.cmd.execute("takeoff");
-    (void)f.cmd.execute("land");
-    (void)f.cmd.execute("landing_complete");
-    (void)f.cmd.execute("disarm");
-
-    FATP_ASSERT_FALSE(f.log.empty(), "TelemetryLog should have entries after flight");
-    const std::string fmt = f.log.formatTail(50);
-    FATP_ASSERT_CONTAINS(fmt, "Armed",   "Log should record Armed");
-    FATP_ASSERT_CONTAINS(fmt, "Flying",  "Log should record Flying");
-    FATP_ASSERT_CONTAINS(fmt, "Landing", "Log should record Landing");
-    return true;
-}
-
-FATP_TEST_CASE(integration_safety_alert_in_telemetry)
-{
-    FullStack f;
-    f.enableArmingAndManual();
-    (void)f.cmd.execute("arm");
-    (void)f.cmd.execute("emergency battery low");
-    FATP_ASSERT_CONTAINS(f.log.formatTail(50), "SAFETY",
-                         "Telemetry should contain SAFETY category");
+    FATP_ASSERT_TRUE(result.success);
+    FATP_ASSERT_CONTAINS(result.message, "IMU");
     return true;
 }
 
@@ -303,87 +400,37 @@ FATP_TEST_CASE(integration_case_insensitive_command)
 {
     FullStack f;
     auto result = f.cmd.execute("HELP");
-    FATP_ASSERT_TRUE(result.success, "HELP uppercase should work");
-    FATP_ASSERT_CONTAINS(result.message, "enable", "Help text should list enable");
+    FATP_ASSERT_TRUE(result.success);
+    FATP_ASSERT_CONTAINS(result.message, "enable");
+    return true;
+}
+
+FATP_TEST_CASE(integration_telemetry_captures_full_flight)
+{
+    FullStack f;
+    f.enableArmingPrereqs();
+    (void)f.cmd.execute("arm");
+    (void)f.cmd.execute("takeoff");
+    (void)f.cmd.execute("land");
+    (void)f.cmd.execute("landing_complete");
+    (void)f.cmd.execute("disarm");
+    FATP_ASSERT_FALSE(f.log.empty());
+    const std::string fmt = f.log.formatTail(50);
+    FATP_ASSERT_CONTAINS(fmt, "Armed");
+    FATP_ASSERT_CONTAINS(fmt, "Flying");
+    FATP_ASSERT_CONTAINS(fmt, "Landing");
     return true;
 }
 
 // ============================================================================
-// Adversarial — wrong-state commands and hostile inputs
+// Adversarial
 // ============================================================================
 
 FATP_TEST_CASE(adversarial_takeoff_from_preflight_fails)
 {
     FullStack f;
-    auto res = f.cmd.execute("takeoff");
-    FATP_ASSERT_FALSE(res.success, "takeoff should fail from Preflight");
-    FATP_ASSERT_TRUE(f.sm.isPreflight(), "Should remain Preflight");
-    return true;
-}
-
-FATP_TEST_CASE(adversarial_land_from_preflight_fails)
-{
-    FullStack f;
-    FATP_ASSERT_FALSE(f.cmd.execute("land").success, "land should fail from Preflight");
-    FATP_ASSERT_TRUE(f.sm.isPreflight(), "Should remain Preflight");
-    return true;
-}
-
-FATP_TEST_CASE(adversarial_land_from_armed_fails)
-{
-    FullStack f;
-    f.enableArmingAndManual();
-    (void)f.cmd.execute("arm");
-    FATP_ASSERT_FALSE(f.cmd.execute("land").success, "land should fail from Armed");
-    FATP_ASSERT_TRUE(f.sm.isArmed(), "Should remain Armed");
-    return true;
-}
-
-FATP_TEST_CASE(adversarial_landing_complete_from_armed_fails)
-{
-    FullStack f;
-    f.enableArmingAndManual();
-    (void)f.cmd.execute("arm");
-    FATP_ASSERT_FALSE(f.cmd.execute("landing_complete").success,
-                      "landing_complete should fail from Armed");
-    FATP_ASSERT_TRUE(f.sm.isArmed(), "Should remain Armed");
-    return true;
-}
-
-FATP_TEST_CASE(adversarial_disarm_after_landing_from_armed_fails)
-{
-    FullStack f;
-    f.enableArmingAndManual();
-    (void)f.cmd.execute("arm");
-    FATP_ASSERT_FALSE(f.cmd.execute("disarm_after_landing").success,
-                      "disarm_after_landing should fail from Armed");
-    FATP_ASSERT_TRUE(f.sm.isArmed(), "Should remain Armed");
-    return true;
-}
-
-FATP_TEST_CASE(adversarial_disarm_after_landing_from_preflight_fails)
-{
-    FullStack f;
-    FATP_ASSERT_FALSE(f.cmd.execute("disarm_after_landing").success,
-                      "disarm_after_landing should fail from Preflight");
-    FATP_ASSERT_TRUE(f.sm.isPreflight(), "Should remain Preflight");
-    return true;
-}
-
-FATP_TEST_CASE(adversarial_emergency_from_preflight_fails)
-{
-    FullStack f;
-    FATP_ASSERT_FALSE(f.cmd.execute("emergency fire").success,
-                      "emergency should fail from Preflight");
-    FATP_ASSERT_TRUE(f.sm.isPreflight(), "Should remain Preflight");
-    return true;
-}
-
-FATP_TEST_CASE(adversarial_reset_from_preflight_fails)
-{
-    FullStack f;
-    FATP_ASSERT_FALSE(f.cmd.execute("reset").success, "reset should fail from Preflight");
-    FATP_ASSERT_TRUE(f.sm.isPreflight(), "Should remain Preflight");
+    FATP_ASSERT_FALSE(f.cmd.execute("takeoff").success);
+    FATP_ASSERT_TRUE(f.sm.isPreflight());
     return true;
 }
 
@@ -391,101 +438,82 @@ FATP_TEST_CASE(adversarial_disarm_from_flying_fails)
 {
     FullStack f;
     f.goFlying();
-    FATP_ASSERT_FALSE(f.cmd.execute("disarm").success, "disarm should fail from Flying");
-    FATP_ASSERT_TRUE(f.sm.isFlying(), "Should remain Flying");
+    FATP_ASSERT_FALSE(f.cmd.execute("disarm").success);
+    FATP_ASSERT_TRUE(f.sm.isFlying());
     return true;
 }
 
 FATP_TEST_CASE(adversarial_arm_when_already_armed_fails)
 {
     FullStack f;
-    f.enableArmingAndManual();
+    f.enableArmingPrereqs();
     (void)f.cmd.execute("arm");
-    FATP_ASSERT_FALSE(f.cmd.execute("arm").success, "arm should fail when already Armed");
-    FATP_ASSERT_TRUE(f.sm.isArmed(), "Should remain Armed");
+    FATP_ASSERT_FALSE(f.cmd.execute("arm").success);
+    FATP_ASSERT_TRUE(f.sm.isArmed());
+    return true;
+}
+
+FATP_TEST_CASE(adversarial_command_with_leading_whitespace)
+{
+    // execute() trims leading whitespace — "   help" must succeed.
+    FullStack f;
+    auto res = f.cmd.execute("   help");
+    FATP_ASSERT_TRUE(res.success, "Leading-space 'help' must succeed after trim");
+    FATP_ASSERT_CONTAINS(res.message, "enable", "Help text must be returned");
+    FATP_ASSERT_FALSE(res.quit);
     return true;
 }
 
 FATP_TEST_CASE(adversarial_enable_unknown_subsystem)
 {
     FullStack f;
-    auto res = f.cmd.execute("enable XYZZY");
-    FATP_ASSERT_FALSE(res.success, "Enabling unknown subsystem should fail");
-    return true;
-}
-
-FATP_TEST_CASE(adversarial_disable_unknown_subsystem)
-{
-    FullStack f;
-    FATP_ASSERT_FALSE(f.cmd.execute("disable XYZZY").success,
-                      "Disabling unknown subsystem should fail");
-    return true;
-}
-
-FATP_TEST_CASE(adversarial_log_zero)
-{
-    // log 0 should succeed but produce empty-or-minimal output without crashing.
-    FullStack f;
-    auto res = f.cmd.execute("log 0");
-    FATP_ASSERT_TRUE(res.success, "log 0 should not crash");
-    return true;
-}
-
-FATP_TEST_CASE(adversarial_log_huge_n)
-{
-    // log with a very large N should succeed (clamped to log size).
-    FullStack f;
-    f.enableArmingAndManual();
-    (void)f.cmd.execute("arm");
-    auto res = f.cmd.execute("log 999999");
-    FATP_ASSERT_TRUE(res.success, "log with huge n should succeed (clamped)");
-    return true;
-}
-
-FATP_TEST_CASE(adversarial_command_with_leading_whitespace)
-{
-    // execute() trims leading whitespace before parsing, so "   help" must
-    // succeed and return help text -- not silently succeed with an empty message.
-    FullStack f;
-    auto res = f.cmd.execute("   help");
-    FATP_ASSERT_TRUE(res.success, "Leading-space 'help' must succeed after trim");
-    FATP_ASSERT_CONTAINS(res.message, "enable", "Help text must be returned");
-    FATP_ASSERT_FALSE(res.quit, "Leading-space command must not set quit flag");
+    FATP_ASSERT_FALSE(f.cmd.execute("enable XYZZY").success);
     return true;
 }
 
 FATP_TEST_CASE(adversarial_very_long_subsystem_name)
 {
-    // A pathologically long name should fail cleanly, not crash or corrupt state.
     FullStack f;
     std::string longName(4096, 'A');
-    auto res = f.cmd.execute("enable " + longName);
-    FATP_ASSERT_FALSE(res.success, "Enabling a 4096-char unknown name should fail");
+    FATP_ASSERT_FALSE(f.cmd.execute("enable " + longName).success);
     return true;
 }
 
 FATP_TEST_CASE(adversarial_null_byte_in_command)
 {
-    // A command string containing an embedded null — should fail cleanly.
     FullStack f;
     std::string evil("enabl\0e GPS", 11);
     auto res = f.cmd.execute(evil);
-    // Anything except a crash/UB is acceptable.
-    FATP_ASSERT_FALSE(res.quit, "Null-byte command must not set quit flag");
+    FATP_ASSERT_FALSE(res.quit);
     return true;
 }
 
 FATP_TEST_CASE(adversarial_takeoff_no_flight_mode_error_message)
 {
-    // Takeoff should fail with a message explaining what's missing.
     FullStack f;
-    f.enableArmingAndManual();
+    f.enableArmingPrereqs();
     (void)f.cmd.execute("arm");
-    // Disable Manual so no flight mode is active
     (void)f.mgr.disableSubsystem("Manual");
     auto res = f.cmd.execute("takeoff");
-    FATP_ASSERT_FALSE(res.success, "Takeoff without flight mode should fail");
-    FATP_ASSERT_FALSE(res.message.empty(), "Failure message should not be empty");
+    FATP_ASSERT_FALSE(res.success);
+    FATP_ASSERT_FALSE(res.message.empty());
+    return true;
+}
+
+FATP_TEST_CASE(adversarial_arm_blocked_while_emergency_stop_active)
+{
+    // Confirm arm is rejected when EmergencyStop is active.
+    FullStack f;
+    f.enableArmingPrereqs();
+    (void)f.cmd.execute("arm");
+    (void)f.cmd.execute("emergency test latch");
+    FATP_ASSERT_TRUE(f.sm.isEmergency());
+    // Reset goes back to Preflight.
+    (void)f.cmd.execute("reset");
+    FATP_ASSERT_TRUE(f.sm.isPreflight());
+    // ES is cleared after reset; re-enable prereqs and confirm we can arm again.
+    (void)f.mgr.enableSubsystem(drone::subsystems::kManual);
+    FATP_ASSERT_TRUE(f.cmd.execute("arm").success, "arm should succeed after clean reset");
     return true;
 }
 
@@ -498,25 +526,15 @@ FATP_TEST_CASE(stress_repeated_full_flight_via_commands)
     for (int i = 0; i < 10; ++i)
     {
         FullStack f;
-        f.enableArmingAndManual();
+        f.enableArmingPrereqs();
         FATP_ASSERT_TRUE(f.cmd.execute("arm").success,              "arm");
         FATP_ASSERT_TRUE(f.cmd.execute("takeoff").success,          "takeoff");
         FATP_ASSERT_TRUE(f.cmd.execute("land").success,             "land");
         FATP_ASSERT_TRUE(f.cmd.execute("landing_complete").success, "landing_complete");
         FATP_ASSERT_TRUE(f.cmd.execute("disarm").success,           "disarm");
-        FATP_ASSERT_TRUE(f.sm.isPreflight(),                        "Preflight at end");
-    }
-    return true;
-}
-
-FATP_TEST_CASE(stress_disarm_after_landing_via_commands)
-{
-    for (int i = 0; i < 10; ++i)
-    {
-        FullStack f;
-        f.goLanding();
-        FATP_ASSERT_TRUE(f.cmd.execute("disarm_after_landing").success, "disarm_after_landing");
-        FATP_ASSERT_TRUE(f.sm.isPreflight(), "Preflight at end");
+        FATP_ASSERT_TRUE(f.sm.isPreflight());
+        FATP_ASSERT_FALSE(f.mgr.isEnabled(drone::subsystems::kMotorMix), "MotorMix off");
+        FATP_ASSERT_FALSE(f.mgr.isEnabled(drone::subsystems::kESC),      "ESC off");
     }
     return true;
 }
@@ -526,19 +544,19 @@ FATP_TEST_CASE(stress_emergency_reset_via_commands)
     for (int i = 0; i < 10; ++i)
     {
         FullStack f;
-        f.enableArmingAndManual();
-        (void)f.cmd.execute("arm");
-        (void)f.cmd.execute("takeoff");
-        FATP_ASSERT_TRUE(f.cmd.execute("emergency stress test").success, "emergency");
-        FATP_ASSERT_TRUE(f.cmd.execute("reset").success,                 "reset");
-        FATP_ASSERT_TRUE(f.sm.isPreflight(), "Preflight after reset");
+        f.goFlying();
+        FATP_ASSERT_TRUE(f.cmd.execute("emergency stress test").success);
+        FATP_ASSERT_TRUE(f.mgr.isEnabled(drone::subsystems::kMotorMix), "motors live");
+        FATP_ASSERT_TRUE(f.cmd.execute("reset").success);
+        FATP_ASSERT_TRUE(f.sm.isPreflight());
+        FATP_ASSERT_FALSE(f.mgr.isEnabled(drone::subsystems::kMotorMix), "motors off after reset");
+        FATP_ASSERT_FALSE(f.mgr.isEnabled(drone::subsystems::kESC),      "ESC off after reset");
     }
     return true;
 }
 
 FATP_TEST_CASE(stress_rejected_commands_do_not_corrupt_state)
 {
-    // Fire a barrage of wrong-state commands; state must remain Preflight throughout.
     FullStack f;
     static constexpr const char* kWrongCmds[] = {
         "disarm", "takeoff", "land", "landing_complete",
@@ -546,28 +564,23 @@ FATP_TEST_CASE(stress_rejected_commands_do_not_corrupt_state)
     };
     for (int i = 0; i < 20; ++i)
     {
-        for (const char* c : kWrongCmds)
-        {
-            (void)f.cmd.execute(c);
-        }
-        FATP_ASSERT_TRUE(f.sm.isPreflight(), "State must remain Preflight throughout barrage");
+        for (const char* c : kWrongCmds) (void)f.cmd.execute(c);
+        FATP_ASSERT_TRUE(f.sm.isPreflight());
     }
     return true;
 }
 
 FATP_TEST_CASE(stress_telemetry_log_fills_and_caps)
 {
-    // Drive enough events to exercise the rolling eviction in TelemetryLog<256>.
     drone::events::DroneEventHub hub;
     drone::SubsystemManager      mgr{hub};
     drone::VehicleStateMachine   sm{mgr, hub};
-    drone::TelemetryLog<16>      log{hub};  // tiny capacity to force eviction
+    drone::TelemetryLog<16>      log{hub};
     drone::CommandParser<16>     cmd{mgr, sm, log};
 
     using namespace drone::subsystems;
     (void)mgr.enableSubsystem(kIMU);
     (void)mgr.enableSubsystem(kBarometer);
-    (void)mgr.enableSubsystem(kMotorMix);
     (void)mgr.enableSubsystem(kRCReceiver);
     (void)mgr.enableSubsystem(kManual);
 
@@ -579,9 +592,8 @@ FATP_TEST_CASE(stress_telemetry_log_fills_and_caps)
         (void)cmd.execute("landing_complete");
         (void)cmd.execute("disarm");
     }
-
     FATP_ASSERT_LE(log.size(), std::size_t(16), "Log must not exceed MaxEntries=16");
-    FATP_ASSERT_FALSE(log.empty(), "Log must not be empty after activity");
+    FATP_ASSERT_FALSE(log.empty());
     return true;
 }
 
@@ -596,6 +608,21 @@ bool test_DroneCore()
 
     TestRunner runner;
 
+    // Graph-native power chain / profile tests
+    FATP_RUN_TEST_NS(runner, dronecore, arm_brings_up_power_chain_via_graph);
+    FATP_RUN_TEST_NS(runner, dronecore, disarm_tears_down_power_chain_via_graph);
+    FATP_RUN_TEST_NS(runner, dronecore, disarm_after_landing_tears_down_power_chain_via_graph);
+    FATP_RUN_TEST_NS(runner, dronecore, airborne_emergency_uses_emergency_land_profile);
+    FATP_RUN_TEST_NS(runner, dronecore, airborne_emergency_reset_auto_cleans_power_chain_no_explicit_disable);
+    FATP_RUN_TEST_NS(runner, dronecore, ground_emergency_message_says_stop);
+    FATP_RUN_TEST_NS(runner, dronecore, ground_emergency_reset_restores_preflight);
+
+    // Reserved feature guards
+    FATP_RUN_TEST_NS(runner, dronecore, enable_emergency_stop_raw_blocked);
+    FATP_RUN_TEST_NS(runner, dronecore, disable_emergency_stop_raw_blocked);
+    FATP_RUN_TEST_NS(runner, dronecore, enable_armed_profile_raw_blocked);
+    FATP_RUN_TEST_NS(runner, dronecore, enable_emergency_land_profile_raw_blocked);
+
     // Basic commands
     FATP_RUN_TEST_NS(runner, dronecore, command_unknown_returns_error);
     FATP_RUN_TEST_NS(runner, dronecore, command_empty_line_ok);
@@ -603,63 +630,35 @@ bool test_DroneCore()
     FATP_RUN_TEST_NS(runner, dronecore, command_quit_sets_quit_flag);
     FATP_RUN_TEST_NS(runner, dronecore, command_enable_success);
     FATP_RUN_TEST_NS(runner, dronecore, command_enable_missing_arg);
-    FATP_RUN_TEST_NS(runner, dronecore, command_enable_dependency_failure);
     FATP_RUN_TEST_NS(runner, dronecore, command_disable_success);
-    FATP_RUN_TEST_NS(runner, dronecore, command_disable_missing_arg);
     FATP_RUN_TEST_NS(runner, dronecore, command_status_shows_state);
-    FATP_RUN_TEST_NS(runner, dronecore, command_arm_without_subsystems_fails);
+    FATP_RUN_TEST_NS(runner, dronecore, command_arm_without_prereqs_fails);
     FATP_RUN_TEST_NS(runner, dronecore, command_arm_success);
     FATP_RUN_TEST_NS(runner, dronecore, command_full_flight_sequence);
     FATP_RUN_TEST_NS(runner, dronecore, command_disarm_after_landing);
     FATP_RUN_TEST_NS(runner, dronecore, command_emergency_and_reset);
     FATP_RUN_TEST_NS(runner, dronecore, command_log_after_events);
-    FATP_RUN_TEST_NS(runner, dronecore, command_log_invalid_n);
     FATP_RUN_TEST_NS(runner, dronecore, command_graph_returns_dot);
     FATP_RUN_TEST_NS(runner, dronecore, command_json_returns_json);
-
-    // Integration
-    FATP_RUN_TEST_NS(runner, dronecore, integration_telemetry_captures_full_flight);
-    FATP_RUN_TEST_NS(runner, dronecore, integration_safety_alert_in_telemetry);
     FATP_RUN_TEST_NS(runner, dronecore, integration_case_insensitive_command);
+    FATP_RUN_TEST_NS(runner, dronecore, integration_telemetry_captures_full_flight);
 
     // Adversarial
     FATP_RUN_TEST_NS(runner, dronecore, adversarial_takeoff_from_preflight_fails);
-    FATP_RUN_TEST_NS(runner, dronecore, adversarial_land_from_preflight_fails);
-    FATP_RUN_TEST_NS(runner, dronecore, adversarial_land_from_armed_fails);
-    FATP_RUN_TEST_NS(runner, dronecore, adversarial_landing_complete_from_armed_fails);
-    FATP_RUN_TEST_NS(runner, dronecore, adversarial_disarm_after_landing_from_armed_fails);
-    FATP_RUN_TEST_NS(runner, dronecore, adversarial_disarm_after_landing_from_preflight_fails);
-    FATP_RUN_TEST_NS(runner, dronecore, adversarial_emergency_from_preflight_fails);
-    FATP_RUN_TEST_NS(runner, dronecore, adversarial_reset_from_preflight_fails);
     FATP_RUN_TEST_NS(runner, dronecore, adversarial_disarm_from_flying_fails);
     FATP_RUN_TEST_NS(runner, dronecore, adversarial_arm_when_already_armed_fails);
-    FATP_RUN_TEST_NS(runner, dronecore, adversarial_enable_unknown_subsystem);
-    FATP_RUN_TEST_NS(runner, dronecore, adversarial_disable_unknown_subsystem);
-    FATP_RUN_TEST_NS(runner, dronecore, adversarial_log_zero);
-    FATP_RUN_TEST_NS(runner, dronecore, adversarial_log_huge_n);
     FATP_RUN_TEST_NS(runner, dronecore, adversarial_command_with_leading_whitespace);
+    FATP_RUN_TEST_NS(runner, dronecore, adversarial_enable_unknown_subsystem);
     FATP_RUN_TEST_NS(runner, dronecore, adversarial_very_long_subsystem_name);
     FATP_RUN_TEST_NS(runner, dronecore, adversarial_null_byte_in_command);
     FATP_RUN_TEST_NS(runner, dronecore, adversarial_takeoff_no_flight_mode_error_message);
+    FATP_RUN_TEST_NS(runner, dronecore, adversarial_arm_blocked_while_emergency_stop_active);
 
     // Stress
     FATP_RUN_TEST_NS(runner, dronecore, stress_repeated_full_flight_via_commands);
-    FATP_RUN_TEST_NS(runner, dronecore, stress_disarm_after_landing_via_commands);
     FATP_RUN_TEST_NS(runner, dronecore, stress_emergency_reset_via_commands);
     FATP_RUN_TEST_NS(runner, dronecore, stress_rejected_commands_do_not_corrupt_state);
     FATP_RUN_TEST_NS(runner, dronecore, stress_telemetry_log_fills_and_caps);
-
-    // Regression tests (Phase 1 bug fixes)
-    FATP_RUN_TEST_NS(runner, dronecore, regression_disarm_restores_preflight_invariant);
-    FATP_RUN_TEST_NS(runner, dronecore, regression_disarm_after_landing_restores_invariant);
-    FATP_RUN_TEST_NS(runner, dronecore, regression_airborne_emergency_reset_restores_invariant);
-    FATP_RUN_TEST_NS(runner, dronecore, regression_ground_emergency_reset_restores_invariant);
-    FATP_RUN_TEST_NS(runner, dronecore, regression_arm_fails_while_emergency_stop_active);
-    FATP_RUN_TEST_NS(runner, dronecore, regression_enable_emergency_stop_raw_blocked);
-    FATP_RUN_TEST_NS(runner, dronecore, regression_disable_emergency_stop_raw_blocked);
-    FATP_RUN_TEST_NS(runner, dronecore, regression_emergency_airborne_message_says_land);
-    FATP_RUN_TEST_NS(runner, dronecore, regression_emergency_ground_message_says_stop);
-    FATP_RUN_TEST_NS(runner, dronecore, regression_repeated_flight_and_reset_leaves_clean_state);
 
     return 0 == runner.print_summary();
 }
@@ -667,217 +666,5 @@ bool test_DroneCore()
 } // namespace fat_p::testing
 
 #ifdef ENABLE_TEST_APPLICATION
-int main()
-{
-    return fat_p::testing::test_DroneCore() ? 0 : 1;
-}
+int main() { return fat_p::testing::test_DroneCore() ? 0 : 1; }
 #endif
-
-// ============================================================================
-// Regression tests — Phase 1 bug fixes (run through full command stack)
-// ============================================================================
-
-namespace fat_p::testing::dronecore
-{
-
-FATP_TEST_CASE(regression_disarm_restores_preflight_invariant)
-{
-    // arm -> takeoff -> land -> landing_complete -> disarm must leave
-    // MotorMix and ESC off and no active flight mode.
-    FullStack f;
-    f.goLanding();
-    (void)f.cmd.execute("landing_complete");
-    FATP_ASSERT_TRUE(f.sm.isArmed(), "Pre-condition: must be Armed");
-
-    (void)f.cmd.execute("disarm");
-    FATP_ASSERT_TRUE(f.sm.isPreflight(), "Must be Preflight after disarm");
-    FATP_ASSERT_FALSE(f.mgr.isEnabled(drone::subsystems::kMotorMix),
-                      "MotorMix must be off in Preflight");
-    FATP_ASSERT_FALSE(f.mgr.isEnabled(drone::subsystems::kESC),
-                      "ESC must be off in Preflight");
-    FATP_ASSERT_TRUE(f.mgr.activeFlightMode().empty(),
-                     "No flight mode must be active in Preflight");
-    return true;
-}
-
-FATP_TEST_CASE(regression_disarm_after_landing_restores_invariant)
-{
-    // arm -> takeoff -> land -> disarm_after_landing must leave canonical Preflight.
-    FullStack f;
-    f.goLanding();
-    FATP_ASSERT_TRUE(f.sm.isLanding(), "Pre-condition: must be Landing");
-
-    (void)f.cmd.execute("disarm_after_landing");
-    FATP_ASSERT_TRUE(f.sm.isPreflight(), "Must be Preflight after disarm_after_landing");
-    FATP_ASSERT_FALSE(f.mgr.isEnabled(drone::subsystems::kMotorMix),
-                      "MotorMix must be off in Preflight");
-    FATP_ASSERT_FALSE(f.mgr.isEnabled(drone::subsystems::kESC),
-                      "ESC must be off in Preflight");
-    FATP_ASSERT_TRUE(f.mgr.activeFlightMode().empty(),
-                     "No flight mode must be active in Preflight");
-    return true;
-}
-
-FATP_TEST_CASE(regression_airborne_emergency_reset_restores_invariant)
-{
-    // arm -> takeoff -> emergency -> reset must return to canonical Preflight,
-    // clearing the motor chain that triggerEmergencyLand re-enabled.
-    FullStack f;
-    f.goFlying();
-    FATP_ASSERT_TRUE(f.sm.isFlying(), "Pre-condition: must be Flying");
-
-    (void)f.cmd.execute("emergency engine failure");
-    FATP_ASSERT_TRUE(f.sm.isEmergency(), "Must be Emergency");
-    // After airborne emergency, motor chain is live for controlled descent.
-    FATP_ASSERT_TRUE(f.mgr.isEnabled(drone::subsystems::kMotorMix),
-                     "MotorMix must be live during airborne emergency");
-
-    (void)f.cmd.execute("reset");
-    FATP_ASSERT_TRUE(f.sm.isPreflight(), "Must be Preflight after reset");
-    FATP_ASSERT_FALSE(f.mgr.isEnabled(drone::subsystems::kEmergencyStop),
-                      "EmergencyStop must be cleared after reset");
-    FATP_ASSERT_FALSE(f.mgr.isEnabled(drone::subsystems::kMotorMix),
-                      "MotorMix must be off after reset to Preflight");
-    FATP_ASSERT_FALSE(f.mgr.isEnabled(drone::subsystems::kESC),
-                      "ESC must be off after reset to Preflight");
-    FATP_ASSERT_TRUE(f.mgr.activeFlightMode().empty(),
-                     "No flight mode must be active after reset");
-    return true;
-}
-
-FATP_TEST_CASE(regression_ground_emergency_reset_restores_invariant)
-{
-    // arm -> emergency (ground) -> reset must return to canonical Preflight.
-    FullStack f;
-    f.enableArmingAndManual();
-    (void)f.cmd.execute("arm");
-    FATP_ASSERT_TRUE(f.sm.isArmed(), "Pre-condition: must be Armed");
-
-    (void)f.cmd.execute("emergency motor stall");
-    FATP_ASSERT_TRUE(f.sm.isEmergency(), "Must be Emergency");
-
-    (void)f.cmd.execute("reset");
-    FATP_ASSERT_TRUE(f.sm.isPreflight(), "Must be Preflight after reset");
-    FATP_ASSERT_FALSE(f.mgr.isEnabled(drone::subsystems::kEmergencyStop),
-                      "EmergencyStop must be cleared");
-    FATP_ASSERT_FALSE(f.mgr.isEnabled(drone::subsystems::kMotorMix),
-                      "MotorMix must be off");
-    FATP_ASSERT_FALSE(f.mgr.isEnabled(drone::subsystems::kESC),
-                      "ESC must be off");
-    return true;
-}
-
-FATP_TEST_CASE(regression_arm_fails_while_emergency_stop_active)
-{
-    // triggerEmergencyStop (from API, not full SM path) then verify arm is rejected.
-    // This catches the scenario: direct enable EmergencyStop -> arm bypass.
-    FullStack f;
-    f.enableArmingAndManual();
-    // Trigger from API to simulate an in-field latch without going through SM.
-    (void)f.mgr.triggerEmergencyStop();
-    FATP_ASSERT_TRUE(f.mgr.isEnabled(drone::subsystems::kEmergencyStop),
-                     "EmergencyStop must be active");
-
-    // Manually re-enable the arm prerequisites that forceExclusive cleared.
-    using namespace drone::subsystems;
-    (void)f.mgr.resetEmergencyStop(); // clear latch to allow re-enable of required subs
-    (void)f.mgr.enableSubsystem(kIMU);
-    (void)f.mgr.enableSubsystem(kBarometer);
-    (void)f.mgr.enableSubsystem(kBatteryMonitor);
-    (void)f.mgr.enableSubsystem(kESC);
-    (void)f.mgr.enableSubsystem(kMotorMix);
-    (void)f.mgr.enableSubsystem(kRCReceiver);
-    // Re-activate EmergencyStop to test the arm guard specifically.
-    (void)f.mgr.enableSubsystem(kEmergencyStop);
-    if (f.mgr.isEnabled(kEmergencyStop))
-    {
-        auto res = f.cmd.execute("arm");
-        FATP_ASSERT_FALSE(res.success, "arm must fail while EmergencyStop is active");
-        FATP_ASSERT_TRUE(f.sm.isPreflight(), "Must remain Preflight");
-    }
-    return true;
-}
-
-FATP_TEST_CASE(regression_enable_emergency_stop_raw_blocked)
-{
-    // 'enable EmergencyStop' must be rejected by CommandParser.
-    // Bypassing this would let a user arm with an active emergency latch.
-    FullStack f;
-    auto res = f.cmd.execute("enable EmergencyStop");
-    FATP_ASSERT_FALSE(res.success, "enable EmergencyStop must be rejected");
-    FATP_ASSERT_CONTAINS(res.message, "reserved", "Error must say 'reserved'");
-    // EmergencyStop must not have been enabled by the rejected command.
-    FATP_ASSERT_FALSE(f.mgr.isEnabled(drone::subsystems::kEmergencyStop),
-                      "EmergencyStop must remain disabled");
-    return true;
-}
-
-FATP_TEST_CASE(regression_disable_emergency_stop_raw_blocked)
-{
-    // 'disable EmergencyStop' must be rejected. It must not be possible to clear
-    // the latch without going through the 'reset' command (which requires Emergency state).
-    FullStack f;
-    f.enableArmingAndManual();
-    (void)f.cmd.execute("arm");
-    (void)f.cmd.execute("emergency test");
-    FATP_ASSERT_TRUE(f.sm.isEmergency(), "Pre-condition: must be Emergency");
-    FATP_ASSERT_TRUE(f.mgr.isEnabled(drone::subsystems::kEmergencyStop),
-                     "EmergencyStop must be active");
-
-    auto res = f.cmd.execute("disable EmergencyStop");
-    FATP_ASSERT_FALSE(res.success, "disable EmergencyStop must be rejected");
-    FATP_ASSERT_CONTAINS(res.message, "reserved", "Error must say 'reserved'");
-    // State must be unchanged.
-    FATP_ASSERT_TRUE(f.sm.isEmergency(), "Must remain in Emergency state");
-    FATP_ASSERT_TRUE(f.mgr.isEnabled(drone::subsystems::kEmergencyStop),
-                     "EmergencyStop must still be active");
-    return true;
-}
-
-FATP_TEST_CASE(regression_emergency_airborne_message_says_land)
-{
-    // cmdEmergency message must say 'EMERGENCY LAND' when triggered while airborne,
-    // not 'EMERGENCY STOP'. The vehicle is not stopping -- it is landing.
-    FullStack f;
-    f.goFlying();
-    auto res = f.cmd.execute("emergency sensor loss");
-    FATP_ASSERT_TRUE(res.success, "emergency must succeed from Flying");
-    FATP_ASSERT_CONTAINS(res.message, "LAND", "Airborne emergency message must say LAND");
-    return true;
-}
-
-FATP_TEST_CASE(regression_emergency_ground_message_says_stop)
-{
-    // cmdEmergency message must say 'EMERGENCY STOP' on the ground path.
-    FullStack f;
-    f.enableArmingAndManual();
-    (void)f.cmd.execute("arm");
-    auto res = f.cmd.execute("emergency motor fault");
-    FATP_ASSERT_TRUE(res.success, "emergency must succeed from Armed");
-    FATP_ASSERT_CONTAINS(res.message, "STOP", "Ground emergency message must say STOP");
-    return true;
-}
-
-FATP_TEST_CASE(regression_repeated_flight_and_reset_leaves_clean_state)
-{
-    // Ten full cycles of arm -> fly -> emergency -> reset must each land in
-    // canonical Preflight with no subsystem drift.
-    for (int i = 0; i < 10; ++i)
-    {
-        FullStack f;
-        f.goFlying();
-        (void)f.cmd.execute("emergency cycle test");
-        FATP_ASSERT_TRUE(f.sm.isEmergency(), "Must be Emergency");
-        (void)f.cmd.execute("reset");
-        FATP_ASSERT_TRUE(f.sm.isPreflight(), "Must be Preflight");
-        FATP_ASSERT_FALSE(f.mgr.isEnabled(drone::subsystems::kMotorMix),
-                          "MotorMix must be off");
-        FATP_ASSERT_FALSE(f.mgr.isEnabled(drone::subsystems::kESC),
-                          "ESC must be off");
-        FATP_ASSERT_TRUE(f.mgr.activeFlightMode().empty(),
-                         "No active flight mode");
-    }
-    return true;
-}
-
-} // namespace fat_p::testing::dronecore

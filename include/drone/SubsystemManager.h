@@ -27,53 +27,73 @@ FATP_META:
  * @brief Drone subsystem management built on fat_p::feature::FeatureManager.
  *
  * @details
- * Registers all drone subsystems as features with their dependency, implication,
- * conflict, mutual-exclusion, and preemption relationships. The FeatureManager
- * handles all constraint enforcement automatically.
+ * The FeatureManager graph is the single source of truth for every subsystem
+ * configuration. Named vehicle states correspond to specific FM graph states;
+ * the state transitions that change subsystem configuration do so by enabling
+ * or disabling profile features whose Entails and Preempts edges encode the
+ * required configuration directly in the graph.
  *
- * Dependency graph summary:
+ * -------------------------------------------------------------------------
+ * Public feature graph
+ * -------------------------------------------------------------------------
  *
- * Flight modes are MutuallyExclusive — they cannot chain via Requires
- * (AltHold cannot Require Stabilize since they conflict with each other).
- * Each mode independently declares its own sensor requirements.
+ * Power chain (Requires):
+ *   MotorMix  -> ESC -> BatteryMonitor
  *
- * - Stabilize  Requires  IMU, Barometer
- * - AltHold    Requires  IMU, Barometer
- * - PosHold    Requires  IMU, Barometer, GPS
- * - Autonomous Requires  IMU, Barometer, GPS, Datalink, CollisionAvoidance
- * - Autonomous Implies   CollisionAvoidance  (auto-enable on enable)
- * - RTL        Requires  IMU, Barometer, GPS
- * - MotorMix   Requires  ESC
- * - ESC        Requires  BatteryMonitor
- * - Failsafe   Requires  BatteryMonitor, RCReceiver
- * - FlightModes group: MutuallyExclusive (Manual, Stabilize, AltHold, PosHold, Autonomous, RTL)
+ * Flight mode sensor requirements (Requires, each mode independent):
+ *   Stabilize  -> IMU, Barometer
+ *   AltHold    -> IMU, Barometer
+ *   PosHold    -> IMU, Barometer, GPS
+ *   Autonomous -> IMU, Barometer, GPS, Datalink, CollisionAvoidance
+ *   Autonomous => CollisionAvoidance  (Implies: auto-enable)
+ *   RTL        -> IMU, Barometer, GPS
  *
- * EmergencyStop graph edges (FM is the source of truth):
- *   EmergencyStop Preempts Manual, Stabilize, AltHold, PosHold, Autonomous, RTL
+ * Safety (Requires):
+ *   Failsafe -> BatteryMonitor, RCReceiver
  *
- *   This means:
- *   - Enabling EmergencyStop force-disables all flight modes via the FM Preempts cascade.
- *   - While EmergencyStop is enabled the FM itself rejects any flight mode re-enable.
- *   - Disabling EmergencyStop (via resetEmergencyStop()) lifts the latch; flight modes
- *     may be re-enabled explicitly afterwards.
+ * Flight mode exclusivity:
+ *   FlightModes group: MutuallyExclusive (Manual, Stabilize, AltHold, PosHold, Autonomous, RTL)
  *
- *   Two trigger paths, both activate EmergencyStop via forceExclusive():
- *     triggerEmergencyStop() - kill path: blanks all features including motors.
- *       Safe when already on the ground (Armed state).
- *     triggerEmergencyLand() - land path: forceExclusive() then re-enables the power
- *       chain (BatteryMonitor, ESC, MotorMix) so motors stay live for controlled descent.
- *       Used when airborne (Flying or Landing states).
- *   Call resetEmergencyStop() to clear the latch. The VehicleStateMachine calls
- *   restorePreflightInvariant() via PreflightState::on_entry() after every transition
- *   to Preflight to enforce the canonical subsystem state.
+ * Emergency latch (Preempts):
+ *   EmergencyStop Preempts every flight mode.
+ *   While EmergencyStop is enabled the FM graph rejects any flight mode enable.
  *
- * Canonical preflight invariant (enforced by restorePreflightInvariant()):
- *   - No active flight mode
- *   - EmergencyStop == false  (cleared by resetEmergencyStop before on_entry fires)
- *   - MotorMix      == false
- *   - ESC           == false
- *   Sensors (IMU, Barometer, GPS, etc.), BatteryMonitor, RCReceiver, Telemetry may
- *   remain on; they are safe to monitor in preflight.
+ * -------------------------------------------------------------------------
+ * Internal profile features (FM graph, not user-exposed)
+ * -------------------------------------------------------------------------
+ *
+ * kProfileArmed ("ArmedProfile"):
+ *   Entails MotorMix, ESC
+ *   Enabled by ArmedState::on_entry (via enterArmedConfiguration()).
+ *   Disabled by PreflightState::on_entry (via leaveArmedConfiguration()).
+ *   Effect: when the vehicle enters Armed, FM-owned Entails bring up MotorMix
+ *   and ESC. When the vehicle leaves Armed for Preflight, disabling the profile
+ *   ref-count-decrements MotorMix and ESC -- if no other Entails source holds
+ *   them, they go off automatically. No imperative cleanup loop needed.
+ *
+ * kProfileEmergencyLand ("EmergencyLandProfile"):
+ *   Entails MotorMix, ESC
+ *   Enabled by triggerEmergencyLand() after forceExclusive(EmergencyStop).
+ *   Disabled by resetEmergencyStop() before the EmergencyStop latch is cleared.
+ *   Effect: the Entails cascade re-owns the power chain so motors stay live
+ *   for a controlled descent. Disabling it on reset auto-cleans the power chain.
+ *
+ * -------------------------------------------------------------------------
+ * Arming readiness
+ * -------------------------------------------------------------------------
+ * validateArmingReadiness() requires: IMU, Barometer, RCReceiver + no active
+ * EmergencyStop. Power chain (MotorMix/ESC/BatteryMonitor) is NOT required
+ * from the user; it is brought up by ArmedProfile via Entails when the
+ * Preflight->Armed transition fires.
+ *
+ * -------------------------------------------------------------------------
+ * Preflight invariant (graph-derived, not imperative)
+ * -------------------------------------------------------------------------
+ * PreflightState::on_entry calls leaveArmedConfiguration(), which:
+ *   1. Disables ArmedProfile  -> FM Entails ref-count takes down MotorMix, ESC
+ *   2. Disables all flight modes
+ * BatteryMonitor is NOT Entailed by ArmedProfile; it was auto-enabled by the
+ * ESC Requires cascade and stays on for preflight monitoring.
  *
  * @see fat_p::feature::FeatureManager
  */
@@ -107,7 +127,7 @@ public:
      * @brief Constructs the subsystem manager and registers all features.
      *
      * @param events Event hub to fire on subsystem state changes.
-     * @throws std::runtime_error if feature graph construction fails (indicates a bug).
+     * @throws std::runtime_error if feature graph construction fails (bug).
      */
     explicit SubsystemManager(drone::events::DroneEventHub& events)
         : mEvents(events)
@@ -128,17 +148,16 @@ public:
         return mManager;
     }
 
+    // -------------------------------------------------------------------------
+    // User-facing subsystem enable/disable
+    // -------------------------------------------------------------------------
+
     /**
      * @brief Enables a subsystem, automatically resolving Requires/Implies dependencies.
      *
      * Rejects the request if the subsystem is a flight mode and EmergencyStop is
-     * currently active. This check is belt-and-suspenders: the FeatureManager graph
-     * also enforces this via the EmergencyStop Preempts edges added in
-     * registerRelationships(). The wrapper check produces a more readable error.
-     *
-     * @param name Subsystem name constant (e.g., drone::subsystems::kAutonomous).
-     * @return Expected<void> on success, or error string describing the conflict,
-     *         missing dependency, or active EmergencyStop latch.
+     * currently active. This is belt-and-suspenders: the FM graph's Preempts edges
+     * enforce the same rule. The wrapper produces a more readable error message.
      *
      * @note Complexity: O(d * log n) where d = dependency depth.
      */
@@ -164,9 +183,6 @@ public:
      * @brief Disables a subsystem.
      *
      * Fails if another enabled subsystem Requires this one.
-     *
-     * @param name Subsystem name constant.
-     * @return Expected<void> on success, or error string.
      */
     [[nodiscard]] fat_p::Expected<void, std::string> disableSubsystem(std::string_view name)
     {
@@ -182,14 +198,11 @@ public:
      * @brief Atomically disables the current flight mode and enables a new one.
      *
      * Uses replace() when a flight mode is already active, which satisfies the
-     * MutuallyExclusive constraint in a single lock and preserves shared sensors
-     * (IMU, Barometer) that both modes Require. Falls back to enableSubsystem()
-     * when no flight mode is currently active.
+     * MutuallyExclusive constraint in a single lock and preserves shared sensors.
+     * Falls back to enableSubsystem() when no flight mode is currently active.
      *
-     * @param newMode Name of the flight mode to switch to. Must be one of the six
-     *                flight mode constants (kManual, kStabilize, kAltHold, kPosHold,
-     *                kAutonomous, kRTL). Non-flight-mode names are rejected.
-     * @return Expected<void> on success, or error string.
+     * @param newMode Must be one of the six flight mode constants. Non-flight-mode
+     *                names are rejected.
      */
     [[nodiscard]] fat_p::Expected<void, std::string> switchFlightMode(std::string_view newMode)
     {
@@ -214,17 +227,74 @@ public:
         return res;
     }
 
+    // -------------------------------------------------------------------------
+    // State-machine hooks — called by VehicleStateMachine on_entry/on_exit
+    // -------------------------------------------------------------------------
+
+    /**
+     * @brief Enables the ArmedProfile so the FM graph owns the power chain.
+     *
+     * Called by ArmedState::on_entry(). ArmedProfile Entails MotorMix and ESC;
+     * enabling it triggers the Entails cascade which auto-enables MotorMix, then
+     * the Requires cascade auto-enables ESC and BatteryMonitor.
+     *
+     * @return Expected<void> on success, or error string.
+     */
+    [[nodiscard]] fat_p::Expected<void, std::string> enterArmedConfiguration()
+    {
+        auto res = mManager.enable(std::string(subsystems::kProfileArmed));
+        if (!res)
+        {
+            mEvents.onSubsystemError.emit(subsystems::kProfileArmed, res.error());
+        }
+        return res;
+    }
+
+    /**
+     * @brief Disables the ArmedProfile and all flight modes; restores Preflight state.
+     *
+     * Called by PreflightState::on_entry() on every path into Preflight
+     * (disarm, disarm_after_landing, emergency reset).
+     *
+     * ArmedProfile owns MotorMix and ESC via Entails. Disabling it triggers
+     * the FM ref-counted Entails cascade:
+     *   - ArmedProfile disabled → MotorMix loses its Entails owner → off
+     *   - planDisableClosure cascades through reverse deps → ESC disabled
+     *     (MotorMix, which required ESC, is already in the plan as false)
+     *   - BatteryMonitor: NOT Entailed; stays on for preflight monitoring
+     *
+     * Flight modes are disabled explicitly because they are user-managed
+     * (not owned by any profile via Entails) and must be cleared to satisfy
+     * the preflight invariant.
+     *
+     * @note All disable errors are silently ignored; features that are already
+     *       off (e.g., after forceExclusive cleared them) produce no-op disables.
+     * @note Complexity: O(n) where n is the number of features to disable.
+     */
+    void leaveArmedConfiguration()
+    {
+        using namespace drone::subsystems;
+
+        // Disable ArmedProfile: FM Entails ref-count takes down MotorMix and ESC.
+        (void)mManager.disable(kProfileArmed);
+
+        // Flight modes are user-managed; disable them explicitly.
+        for (const char* mode : {kManual, kStabilize, kAltHold, kPosHold, kAutonomous, kRTL})
+        {
+            (void)mManager.disable(mode);
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // Emergency paths
+    // -------------------------------------------------------------------------
+
     /**
      * @brief Kill-path emergency stop. Blanks all subsystem state including motors.
      *
-     * Uses forceExclusive(), which atomically clears all desiredStates and enables
-     * EmergencyStop. The Preempts edges from EmergencyStop to all flight modes in the
-     * FM graph then hold those modes off until resetEmergencyStop() is called.
-     * All sensors, flight modes, and power chain subsystems are disabled as a side
-     * effect. Use when the vehicle is on the ground (Armed state) where cutting motor
-     * power is safe.
-     *
-     * @return Expected<void> on success, or error string.
+     * Uses forceExclusive(EmergencyStop), which atomically clears all desiredStates
+     * and enables EmergencyStop. The FM Preempts edges block all flight modes until
+     * resetEmergencyStop() is called. Use when on the ground (Armed state).
      */
     [[nodiscard]] fat_p::Expected<void, std::string> triggerEmergencyStop()
     {
@@ -237,25 +307,27 @@ public:
     }
 
     /**
-     * @brief Land-path emergency stop. Disables flight modes but keeps motors live.
+     * @brief Land-path emergency stop. Clears flight modes; re-owns power chain via FM graph.
      *
-     * Uses forceExclusive() to atomically clear all feature state and enable
-     * EmergencyStop (same Preempts latch as the kill path), then immediately
-     * re-enables the power chain (BatteryMonitor -> ESC -> MotorMix) so the drone
-     * can execute a controlled descent. Use when airborne (Flying or Landing states).
+     * Two-step FM transaction:
+     *   Step 1: forceExclusive(EmergencyStop) — atomically clears all feature state
+     *           (including ArmedProfile and power chain) and sets the Preempts latch.
+     *   Step 2: enable(EmergencyLandProfile) — ArmedProfile is gone; EmergencyLandProfile
+     *           becomes the new Entails owner of MotorMix and ESC. The Entails cascade
+     *           auto-enables MotorMix -> ESC -> BatteryMonitor so motors stay live.
      *
-     * The Preempts latch in the FM graph still blocks any flight mode from being
-     * re-enabled until resetEmergencyStop() is called.
+     * On reset, resetEmergencyStop() disables EmergencyLandProfile first. The FM
+     * ref-counted Entails cascade takes down MotorMix and ESC automatically.
+     * No cleanup loop. No imperative restore. The graph handles it.
      *
-     * @return Expected<void> on success, or error from forceExclusive or power chain
-     *         re-enable. On partial failure the EmergencyStop latch is still active;
-     *         the error is surfaced via onSubsystemError.
+     * Use when airborne (Flying or Landing states).
      */
     [[nodiscard]] fat_p::Expected<void, std::string> triggerEmergencyLand()
     {
         using namespace drone::subsystems;
 
-        // Step 1: forceExclusive sets the Preempts latch and clears everything.
+        // Step 1: forceExclusive sets the Preempts latch and blanks everything,
+        // including any ArmedProfile and power chain features.
         auto res = mManager.forceExclusive(std::string(kEmergencyStop));
         if (!res)
         {
@@ -263,123 +335,63 @@ public:
             return res;
         }
 
-        // Step 2: Re-enable the power chain so motors stay live for controlled descent.
-        // Enable in dependency order: BatteryMonitor first, then ESC (Requires BatteryMonitor),
-        // then MotorMix (Requires ESC). Failure here is unexpected but not fatal -- the
-        // EmergencyStop latch is already set; surface the error and return it.
-        for (const char* name : {kBatteryMonitor, kESC, kMotorMix})
+        // Step 2: Enable EmergencyLandProfile. ArmedProfile is gone (cleared by
+        // forceExclusive), so EmergencyLandProfile is now the sole Entails owner
+        // of MotorMix and ESC. The Entails cascade re-enables the power chain.
+        auto pw = mManager.enable(std::string(kProfileEmergencyLand));
+        if (!pw)
         {
-            auto pw = mManager.enable(std::string(name));
-            if (!pw)
-            {
-                mEvents.onSubsystemError.emit(name, pw.error());
-                return pw;
-            }
+            mEvents.onSubsystemError.emit(kProfileEmergencyLand, pw.error());
+            return pw;
         }
         return {};
     }
 
     /**
-     * @brief Clears the EmergencyStop latch so flight modes can be re-enabled.
+     * @brief Clears the emergency state and auto-cleans the power chain via FM graph.
      *
-     * Disables the EmergencyStop feature. The Preempts latch in the FM graph is
-     * lifted; previously preempted flight modes are not auto-re-enabled. Must be
-     * called as part of the reset sequence before the vehicle state machine
-     * transitions back to Preflight.
+     * If EmergencyLandProfile is active (airborne path), disabling it triggers the
+     * FM Entails ref-count cascade: MotorMix and ESC lose their sole Entails owner
+     * and are disabled automatically. No explicit power-chain cleanup needed.
      *
-     * The VehicleStateMachine calls restorePreflightInvariant() via
-     * PreflightState::on_entry() after this returns, which ensures the motor chain
-     * (MotorMix, ESC) is powered down before the Preflight state is entered.
+     * Then EmergencyStop is disabled, lifting the FM Preempts latch on flight modes.
+     *
+     * For the ground-stop path (EmergencyLandProfile was never enabled),
+     * the first disable is a no-op and only EmergencyStop is cleared.
      *
      * @return Expected<void> on success, or error string.
      */
     [[nodiscard]] fat_p::Expected<void, std::string> resetEmergencyStop()
     {
-        auto res = mManager.disable(std::string(subsystems::kEmergencyStop));
+        using namespace drone::subsystems;
+
+        // Disable EmergencyLandProfile first (if active -- airborne path).
+        // The FM Entails ref-count cascade auto-disables MotorMix and ESC.
+        // Ignore error: on the ground path this profile was never enabled.
+        (void)mManager.disable(kProfileEmergencyLand);
+
+        // Now clear the EmergencyStop Preempts latch.
+        auto res = mManager.disable(kEmergencyStop);
         if (!res)
         {
-            mEvents.onSubsystemError.emit(subsystems::kEmergencyStop, res.error());
+            mEvents.onSubsystemError.emit(kEmergencyStop, res.error());
         }
         return res;
     }
 
-    /**
-     * @brief Restores the canonical preflight subsystem configuration.
-     *
-     * Called by PreflightState::on_entry() on every transition into Preflight,
-     * regardless of the path (disarm, disarm_after_landing, reset). Guarantees
-     * that named vehicle states correspond to consistent subsystem configurations.
-     *
-     * Post-condition:
-     *   - All six flight modes are disabled.
-     *   - MotorMix is disabled.
-     *   - ESC is disabled.
-     *   - Sensors, BatteryMonitor, RCReceiver, Telemetry are left untouched
-     *     (safe to remain on for preflight setup and monitoring).
-     *
-     * Features are disabled in consumer-first order to satisfy Requires constraints.
-     * Errors from features that are already disabled are silently ignored.
-     *
-     * @note Complexity: O(n) where n is the number of features to disable.
-     */
-    void restorePreflightInvariant()
-    {
-        using namespace drone::subsystems;
-
-        // Disable flight modes first -- they have no dependents in the power chain.
-        for (const char* mode : {kManual, kStabilize, kAltHold, kPosHold, kAutonomous, kRTL})
-        {
-            (void)mManager.disable(mode);
-        }
-
-        // Disable power chain in consumer-first order.
-        // MotorMix Requires ESC; disable MotorMix before ESC.
-        (void)mManager.disable(kMotorMix);
-        (void)mManager.disable(kESC);
-        // BatteryMonitor intentionally left on -- safe for preflight monitoring.
-    }
-
-    /**
-     * @brief Returns true if the named subsystem is currently enabled.
-     */
-    [[nodiscard]] bool isEnabled(std::string_view name) const
-    {
-        return mManager.isEnabled(std::string(name));
-    }
-
-    /**
-     * @brief Returns a list of all currently enabled subsystem names.
-     */
-    [[nodiscard]] std::vector<std::string> enabledSubsystems() const
-    {
-        using namespace drone::subsystems;
-
-        // All feature names in registration order
-        static constexpr const char* kAllFeatures[] = {
-            kIMU, kGPS, kBarometer, kCompass, kOpticalFlow, kLidar,
-            kBatteryMonitor, kESC, kMotorMix,
-            kRCReceiver, kTelemetry, kDatalink,
-            kManual, kStabilize, kAltHold, kPosHold, kAutonomous, kRTL,
-            kGeofence, kFailsafe, kCollisionAvoid, kEmergencyStop
-        };
-
-        std::vector<std::string> result;
-        for (const char* name : kAllFeatures)
-        {
-            if (mManager.isEnabled(name))
-            {
-                result.emplace_back(name);
-            }
-        }
-        return result;
-    }
+    // -------------------------------------------------------------------------
+    // Queries
+    // -------------------------------------------------------------------------
 
     /**
      * @brief Validates that the drone is ready to arm.
      *
-     * Required for arming: IMU, Barometer, BatteryMonitor, ESC, MotorMix, RCReceiver.
-     * Also rejects arming if EmergencyStop is active -- arming while the emergency
-     * latch is set would bypass the safety interlock.
+     * Required: IMU, Barometer, RCReceiver.
+     * The power chain (BatteryMonitor/ESC/MotorMix) is brought up by ArmedProfile
+     * via Entails when the Preflight->Armed transition fires; it is NOT a user
+     * prerequisite.
+     *
+     * Also rejects arming if EmergencyStop is active.
      *
      * @return Expected<void> on success, or error describing the first violation.
      */
@@ -387,16 +399,13 @@ public:
     {
         using namespace drone::subsystems;
 
-        // Reject arming with an active emergency latch first -- clearest failure mode.
         if (mManager.isEnabled(kEmergencyStop))
         {
             return fat_p::unexpected(
                 std::string("Cannot arm: EmergencyStop is active. Call reset to clear."));
         }
 
-        static constexpr const char* kArmRequired[] = {
-            kIMU, kBarometer, kBatteryMonitor, kESC, kMotorMix, kRCReceiver
-        };
+        static constexpr const char* kArmRequired[] = { kIMU, kBarometer, kRCReceiver };
 
         for (const char* name : kArmRequired)
         {
@@ -411,13 +420,8 @@ public:
     /**
      * @brief Validates that the given flight mode can be activated right now.
      *
-     * Checks that the name is one of the six flight mode constants and that it is
-     * currently enabled (dependency chain already satisfied by FeatureManager on
-     * enable).
-     *
-     * @param mode Flight mode name (e.g., drone::subsystems::kPosHold).
-     * @return Expected<void> on success, or error if mode is not a flight mode
-     *         or is not currently active.
+     * Checks that the name is one of the six flight mode constants and that it
+     * is currently enabled.
      */
     [[nodiscard]] fat_p::Expected<void, std::string> validateFlightMode(std::string_view mode) const
     {
@@ -435,24 +439,54 @@ public:
     }
 
     /**
-     * @brief Returns any currently active flight mode name, or empty string if none.
+     * @brief Returns true if the named subsystem is currently enabled.
+     */
+    [[nodiscard]] bool isEnabled(std::string_view name) const
+    {
+        return mManager.isEnabled(std::string(name));
+    }
+
+    /**
+     * @brief Returns the name of the currently active flight mode, or empty if none.
      */
     [[nodiscard]] std::string activeFlightMode() const
     {
         using namespace drone::subsystems;
-
         static constexpr const char* kModes[] = {
             kManual, kStabilize, kAltHold, kPosHold, kAutonomous, kRTL
         };
-
         for (const char* mode : kModes)
         {
-            if (mManager.isEnabled(mode))
-            {
-                return mode;
-            }
+            if (mManager.isEnabled(mode)) { return mode; }
         }
         return {};
+    }
+
+    /**
+     * @brief Returns all currently enabled subsystem names.
+     *
+     * Includes internal profile features so the demo status output shows which
+     * FM-owned profile is active (ArmedProfile, EmergencyLandProfile).
+     */
+    [[nodiscard]] std::vector<std::string> enabledSubsystems() const
+    {
+        using namespace drone::subsystems;
+
+        static constexpr const char* kAllFeatures[] = {
+            kIMU, kGPS, kBarometer, kCompass, kOpticalFlow, kLidar,
+            kBatteryMonitor, kESC, kMotorMix,
+            kRCReceiver, kTelemetry, kDatalink,
+            kManual, kStabilize, kAltHold, kPosHold, kAutonomous, kRTL,
+            kGeofence, kFailsafe, kCollisionAvoid, kEmergencyStop,
+            kProfileArmed, kProfileEmergencyLand  // internal profiles
+        };
+
+        std::vector<std::string> result;
+        for (const char* name : kAllFeatures)
+        {
+            if (mManager.isEnabled(name)) { result.emplace_back(name); }
+        }
+        return result;
     }
 
     /**
@@ -474,11 +508,8 @@ public:
 private:
     Manager mManager;
     drone::events::DroneEventHub& mEvents;
-    // ScopedObserver has no default constructor; use optional so wireObserver()
-    // can emplace it after mManager is fully constructed.
     std::optional<Manager::ScopedObserver> mObserver;
 
-    // Throw on construction failure -- a bug in graph setup, not a runtime condition.
     static void requireOk(fat_p::Expected<void, std::string>&& res, const char* context)
     {
         if (!res)
@@ -487,11 +518,9 @@ private:
         }
     }
 
-    // Returns true if name is one of the six flight mode constants.
     static bool isFlightMode(std::string_view name)
     {
         using namespace drone::subsystems;
-
         static constexpr const char* kModes[] = {
             kManual, kStabilize, kAltHold, kPosHold, kAutonomous, kRTL
         };
@@ -506,35 +535,24 @@ private:
     {
         using namespace drone::subsystems;
 
-        // Sensors
         for (const char* name : {kIMU, kGPS, kBarometer, kCompass, kOpticalFlow, kLidar})
-        {
             requireOk(mManager.addFeature(name), "addFeature sensors");
-        }
 
-        // Power
         for (const char* name : {kBatteryMonitor, kESC, kMotorMix})
-        {
             requireOk(mManager.addFeature(name), "addFeature power");
-        }
 
-        // Comms
         for (const char* name : {kRCReceiver, kTelemetry, kDatalink})
-        {
             requireOk(mManager.addFeature(name), "addFeature comms");
-        }
 
-        // Flight modes
         for (const char* name : {kManual, kStabilize, kAltHold, kPosHold, kAutonomous, kRTL})
-        {
             requireOk(mManager.addFeature(name), "addFeature flight modes");
-        }
 
-        // Safety
         for (const char* name : {kGeofence, kFailsafe, kCollisionAvoid, kEmergencyStop})
-        {
             requireOk(mManager.addFeature(name), "addFeature safety");
-        }
+
+        // Internal profile features.
+        requireOk(mManager.addFeature(kProfileArmed),        "addFeature ArmedProfile");
+        requireOk(mManager.addFeature(kProfileEmergencyLand),"addFeature EmergencyLandProfile");
     }
 
     void registerRelationships()
@@ -542,55 +560,66 @@ private:
         using namespace drone::subsystems;
         using FR = fat_p::feature::FeatureRelationship;
 
-        // Power chain
-        requireOk(mManager.addRelationship(kESC,      FR::Requires, kBatteryMonitor), "ESC->BatteryMonitor");
-        requireOk(mManager.addRelationship(kMotorMix, FR::Requires, kESC),            "MotorMix->ESC");
+        // Power chain (Requires)
+        requireOk(mManager.addRelationship(kESC,      FR::Requires, kBatteryMonitor), "ESC->BM");
+        requireOk(mManager.addRelationship(kMotorMix, FR::Requires, kESC),            "MM->ESC");
 
-        // Safety
-        requireOk(mManager.addRelationship(kFailsafe, FR::Requires, kBatteryMonitor), "Failsafe->BatteryMonitor");
-        requireOk(mManager.addRelationship(kFailsafe, FR::Requires, kRCReceiver),     "Failsafe->RCReceiver");
+        // Safety (Requires)
+        requireOk(mManager.addRelationship(kFailsafe, FR::Requires, kBatteryMonitor), "Failsafe->BM");
+        requireOk(mManager.addRelationship(kFailsafe, FR::Requires, kRCReceiver),     "Failsafe->RCR");
 
-        // Flight mode sensor requirements.
-        // NOTE: Flight modes are MutuallyExclusive -- they cannot chain via Requires
-        // (AltHold cannot Require Stabilize since they conflict with each other).
-        // Each mode independently declares the sensors it needs.
-
-        requireOk(mManager.addRelationship(kStabilize,  FR::Requires, kIMU),       "Stabilize->IMU");
-        requireOk(mManager.addRelationship(kStabilize,  FR::Requires, kBarometer), "Stabilize->Barometer");
-
-        requireOk(mManager.addRelationship(kAltHold,    FR::Requires, kIMU),       "AltHold->IMU");
-        requireOk(mManager.addRelationship(kAltHold,    FR::Requires, kBarometer), "AltHold->Barometer");
-
-        requireOk(mManager.addRelationship(kPosHold,    FR::Requires, kIMU),       "PosHold->IMU");
-        requireOk(mManager.addRelationship(kPosHold,    FR::Requires, kBarometer), "PosHold->Barometer");
-        requireOk(mManager.addRelationship(kPosHold,    FR::Requires, kGPS),       "PosHold->GPS");
-
-        requireOk(mManager.addRelationship(kAutonomous, FR::Requires, kIMU),            "Auto->IMU");
-        requireOk(mManager.addRelationship(kAutonomous, FR::Requires, kBarometer),      "Auto->Barometer");
-        requireOk(mManager.addRelationship(kAutonomous, FR::Requires, kGPS),            "Auto->GPS");
-        requireOk(mManager.addRelationship(kAutonomous, FR::Requires, kDatalink),       "Auto->Datalink");
-        requireOk(mManager.addRelationship(kAutonomous, FR::Requires, kCollisionAvoid), "Auto->CollisionAvoid");
-        requireOk(mManager.addRelationship(kAutonomous, FR::Implies,  kCollisionAvoid), "Auto=>CollisionAvoid");
-
+        // Flight mode sensor requirements
+        requireOk(mManager.addRelationship(kStabilize,  FR::Requires, kIMU),       "Stab->IMU");
+        requireOk(mManager.addRelationship(kStabilize,  FR::Requires, kBarometer), "Stab->Baro");
+        requireOk(mManager.addRelationship(kAltHold,    FR::Requires, kIMU),       "AH->IMU");
+        requireOk(mManager.addRelationship(kAltHold,    FR::Requires, kBarometer), "AH->Baro");
+        requireOk(mManager.addRelationship(kPosHold,    FR::Requires, kIMU),       "PH->IMU");
+        requireOk(mManager.addRelationship(kPosHold,    FR::Requires, kBarometer), "PH->Baro");
+        requireOk(mManager.addRelationship(kPosHold,    FR::Requires, kGPS),       "PH->GPS");
+        requireOk(mManager.addRelationship(kAutonomous, FR::Requires, kIMU),            "Au->IMU");
+        requireOk(mManager.addRelationship(kAutonomous, FR::Requires, kBarometer),      "Au->Baro");
+        requireOk(mManager.addRelationship(kAutonomous, FR::Requires, kGPS),            "Au->GPS");
+        requireOk(mManager.addRelationship(kAutonomous, FR::Requires, kDatalink),       "Au->DL");
+        requireOk(mManager.addRelationship(kAutonomous, FR::Requires, kCollisionAvoid), "Au->CA");
+        requireOk(mManager.addRelationship(kAutonomous, FR::Implies,  kCollisionAvoid), "Au=>CA");
         requireOk(mManager.addRelationship(kRTL,        FR::Requires, kIMU),       "RTL->IMU");
-        requireOk(mManager.addRelationship(kRTL,        FR::Requires, kBarometer), "RTL->Barometer");
+        requireOk(mManager.addRelationship(kRTL,        FR::Requires, kBarometer), "RTL->Baro");
         requireOk(mManager.addRelationship(kRTL,        FR::Requires, kGPS),       "RTL->GPS");
 
         // EmergencyStop Preempts all flight modes.
-        //
-        // This is the FM-level source of truth for the emergency latch:
-        //   - Enabling EmergencyStop force-disables all flight modes via Preempts cascade.
-        //   - While EmergencyStop is enabled the FM rejects any flight mode re-enable
-        //     (Preempts invariant: source enabled -> all targets must be disabled).
-        //   - Disabling EmergencyStop lifts the latch; flight modes are not auto-re-enabled.
-        //
-        // The manual check in enableSubsystem() is belt-and-suspenders, providing a
-        // more specific error message before the FM rejects via graph constraint.
+        // FM source of truth for the emergency latch: while EmergencyStop is
+        // enabled, the graph rejects any flight mode enable. The manual check
+        // in enableSubsystem() is belt-and-suspenders for error message clarity.
         for (const char* mode : {kManual, kStabilize, kAltHold, kPosHold, kAutonomous, kRTL})
-        {
             requireOk(mManager.addRelationship(kEmergencyStop, FR::Preempts, mode),
-                      "EmergencyStop Preempts flight mode");
-        }
+                      "EmergencyStop Preempts mode");
+
+        // ArmedProfile Entails the power chain (MotorMix, ESC).
+        //
+        // When ArmedProfile is enabled (ArmedState::on_entry):
+        //   FM Entails cascade -> enable MotorMix -> Requires cascade -> ESC -> BatteryMonitor.
+        //
+        // When ArmedProfile is disabled (PreflightState::on_entry):
+        //   FM Entails ref-count -> both MotorMix and ESC lose their sole Entails owner
+        //   -> planDisableClosure processes MotorMix first (sets plan.desiredStates["MotorMix"]=false)
+        //   -> then ESC: MotorMix is already false in the plan so its Requires edge
+        //      does not block the ESC disable -> ESC disabled.
+        //   BatteryMonitor: NOT Entailed; stays enabled for preflight monitoring.
+        requireOk(mManager.addRelationship(kProfileArmed, FR::Entails, kMotorMix), "Armed Entails MM");
+        requireOk(mManager.addRelationship(kProfileArmed, FR::Entails, kESC),      "Armed Entails ESC");
+
+        // EmergencyLandProfile Entails the power chain (same edges as ArmedProfile).
+        //
+        // Enabled in triggerEmergencyLand() after forceExclusive(EmergencyStop):
+        //   ArmedProfile was cleared by forceExclusive, so EmergencyLandProfile
+        //   becomes the sole Entails owner. Entails cascade re-enables MotorMix/ESC.
+        //
+        // Disabled in resetEmergencyStop() (before EmergencyStop is cleared):
+        //   FM Entails cascade auto-disables MotorMix and ESC. No cleanup loop.
+        requireOk(mManager.addRelationship(kProfileEmergencyLand, FR::Entails, kMotorMix),
+                  "ELand Entails MM");
+        requireOk(mManager.addRelationship(kProfileEmergencyLand, FR::Entails, kESC),
+                  "ELand Entails ESC");
     }
 
     void registerGroups()
@@ -600,20 +629,15 @@ private:
         requireOk(mManager.addGroup(kGroupSensors,
                       std::vector<std::string>{kIMU, kGPS, kBarometer, kCompass, kOpticalFlow, kLidar}),
                   "addGroup Sensors");
-
         requireOk(mManager.addGroup(kGroupPower,
                       std::vector<std::string>{kBatteryMonitor, kESC, kMotorMix}),
                   "addGroup Power");
-
         requireOk(mManager.addGroup(kGroupComms,
                       std::vector<std::string>{kRCReceiver, kTelemetry, kDatalink}),
                   "addGroup Comms");
-
-        // MutuallyExclusive group: adds Conflicts between every pair of flight modes
         requireOk(mManager.addMutuallyExclusiveGroup(kGroupFlightModes,
                       std::vector<std::string>{kManual, kStabilize, kAltHold, kPosHold, kAutonomous, kRTL}),
                   "addMutuallyExclusiveGroup FlightModes");
-
         requireOk(mManager.addGroup(kGroupSafety,
                       std::vector<std::string>{kGeofence, kFailsafe, kCollisionAvoid, kEmergencyStop}),
                   "addGroup Safety");
