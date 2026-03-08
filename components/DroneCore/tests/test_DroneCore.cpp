@@ -511,8 +511,8 @@ FATP_TEST_CASE(adversarial_arm_blocked_while_emergency_stop_active)
     // Reset goes back to Preflight.
     (void)f.cmd.execute("reset");
     FATP_ASSERT_TRUE(f.sm.isPreflight(), "f.sm.isPreflight()");
-    // ES is cleared after reset; re-enable prereqs and confirm we can arm again.
-    (void)f.mgr.enableSubsystem(drone::subsystems::kManual);
+    // ES is cleared after reset; re-enable all prereqs and confirm we can arm again.
+    f.enableArmingPrereqs();
     FATP_ASSERT_TRUE(f.cmd.execute("arm").success, "arm should succeed after clean reset");
     return true;
 }

@@ -426,9 +426,10 @@ FATP_TEST_CASE(validate_arming_blocked_by_emergency_stop)
     if (res.has_value())
     {
         // FM accepted the direct enable — now test the arming guard.
-        FATP_ASSERT_FALSE(f.mgr.validateArmingReadiness().has_value(),
+        auto armResult = f.mgr.validateArmingReadiness();
+        FATP_ASSERT_FALSE(armResult.has_value(),
                           "Arming must fail while EmergencyStop is active");
-        FATP_ASSERT_CONTAINS(f.mgr.validateArmingReadiness().error(), "EmergencyStop",
+        FATP_ASSERT_CONTAINS(armResult.error(), "EmergencyStop",
                              "Error must mention EmergencyStop");
     }
     // If FM rejected the direct enable (Preempts would block it only if ES is
